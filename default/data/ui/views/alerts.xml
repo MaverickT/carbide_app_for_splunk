@@ -1,0 +1,69 @@
+<form version="1.1" theme="dark" stylesheet="carbide.css">
+    <label>Alerts</label>
+    <description>Recent fires of Carbide alert searches. Configure actions (email, webhook, PagerDuty, ...) on the individual saved searches under Settings &gt; Searches, reports, and alerts.</description>
+
+    <fieldset submitButton="false" autoRun="true">
+        <input type="time" token="time_tok" searchWhenChanged="true">
+            <label>Time range</label>
+            <default>
+                <earliest>-7d@h</earliest>
+                <latest>now</latest>
+            </default>
+        </input>
+    </fieldset>
+
+    <row>
+        <panel>
+            <title>Triggered alerts</title>
+            <table>
+                <search>
+                    <query>
+                        | rest /services/alerts/fired_alerts splunk_server=local count=200
+                        | search eai:acl.app="carbide_app_for_splunk" OR savedsearch_name="Carbide -*"
+                        | eval _time = coalesce(strptime(trigger_time, "%a %b %e %H:%M:%S %Y"), now())
+                        | sort - _time
+                        | head 100
+                        | table _time savedsearch_name triggered_alerts severity
+                    </query>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">50</option>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Alert rate (per saved search)</title>
+            <chart>
+                <search>
+                    <query>
+                        index=_audit sourcetype=audittrail action="alert_fired" ss_name="Carbide -*"
+                        | timechart count by ss_name
+                    </query>
+                    <earliest>$time_tok.earliest$</earliest>
+                    <latest>$time_tok.latest$</latest>
+                </search>
+                <option name="charting.chart">line</option>
+                <option name="charting.legend.placement">bottom</option>
+            </chart>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Suppression / dedupe summary</title>
+            <table>
+                <search>
+                    <query>
+                        | rest /servicesNS/-/carbide_app_for_splunk/saved/searches splunk_server=local
+                        | search title="Carbide - Alert:*"
+                        | table title alert.suppress alert.suppress.period alert.suppress.fields alert.severity disabled
+                        | rename title as "alert", "alert.suppress" as "suppress", "alert.suppress.period" as "period", "alert.suppress.fields" as "by", "alert.severity" as "severity"
+                    </query>
+                </search>
+                <option name="drilldown">none</option>
+            </table>
+        </panel>
+    </row>
+</form>

@@ -1,0 +1,8 @@
+field_name,pattern,mode,tracking_type,notes
+index,_*,exclude,both,seed: skip Splunk internal indexes (_internal/_audit/_introspection/...)
+index,summary,exclude,both,seed: skip the shared summary index
+index,history,exclude,both,seed: skip the history index
+sourcetype,stash*,exclude,both,seed: skip summary-indexing artifacts
+sourcetype,splunkd*,exclude,hosts,seed: skip Splunk's own daemon noise on host tracking
+source,/var/log/syslogs/port_*,exclude,sources,"seed: whitelist stable syslog port_* files for source-based tracking"
+source,/opt/syslogs/port_*,exclude,sources,"seed: whitelist stable syslog port_* files for source-based tracking"

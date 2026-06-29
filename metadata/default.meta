@@ -1,0 +1,110 @@
+###
+### Carbide for Splunk - default permissions
+###
+### Defaults shipped with the app. Users can override in metadata/local.meta
+### through the UI (Settings > All configurations).
+###
+
+[]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+###
+### KV Store collections
+###
+
+[collections/carbide_tracked_hosts]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[collections/carbide_tracked_sources]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[collections/carbide_settings]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[collections/carbide_entity_filters]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[collections/carbide_status_history]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[collections/carbide_assets]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_assets_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[collections/carbide_holidays]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_holidays_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_holidays_seed]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+###
+### Lookup definitions (KV store backed)
+###
+
+[transforms/carbide_tracked_hosts_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_tracked_sources_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_settings_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_entity_filters_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_status_history_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_entity_filters_seed]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+###
+### Macros
+###
+
+[macros]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+###
+### Views
+###
+
+[views]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+###
+### Saved searches (scheduled discovery + alerts).
+### Note: saved searches dispatch as the owner; we ship them owned by 'nobody'
+### so the app context is used. Schedules are off by default - admins enable
+### per-search after first run.
+###
+
+[savedsearches]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+owner = nobody

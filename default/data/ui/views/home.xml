@@ -1,0 +1,245 @@
+<form version="1.1" theme="dark" stylesheet="carbide.css">
+    <label>Home</label>
+    <description>Health at a glance for everything Carbide is watching.</description>
+
+    <search id="home_kv_counts">
+        <progress>
+            <condition match="$result.monitored_count$ == 0">
+                <set token="show_get_started">1</set>
+                <unset token="show_dashboard">none</unset>
+            </condition>
+            <condition>
+                <set token="show_dashboard">1</set>
+                <unset token="show_get_started">none</unset>
+            </condition>
+        </progress>
+        <query>
+            | inputlookup carbide_tracked_hosts_lookup
+            | append [ | inputlookup carbide_tracked_sources_lookup ]
+            | stats sum(monitored) as monitored_count, count as total_count
+            | eval monitored_count = coalesce(monitored_count, 0)
+        </query>
+        <earliest>0</earliest>
+        <latest></latest>
+    </search>
+
+    <row depends="$show_get_started$">
+        <panel>
+            <html>
+                <h2 style="color:#fff;margin:6px 0 4px 0;">Welcome to Carbide</h2>
+                <p style="color:#cfd8dc;margin:0 0 14px 0;">
+                  Three quick steps to start watching your data sources for outages.
+                  No PhD required.
+                </p>
+                <div class="carbide-getstarted">
+                    <div class="carbide-card">
+                        <h4><span class="carbide-step-num">1</span> Discover</h4>
+                        <p>
+                          Carbide doesn't watch anything by default. First, ask it
+                          to look at your indexed metadata and list everything that
+                          could be watched.
+                        </p>
+                        <p>
+                          Open <a href="/manager/carbide_app_for_splunk/saved/searches?app=carbide_app_for_splunk&amp;owner=-&amp;ns=carbide_app_for_splunk" target="_blank">Settings &#8250; Searches, reports, and alerts</a>,
+                          find <em>Carbide - Discover hosts (recommended)</em>
+                          and click <strong>Run</strong>. Then do the same for
+                          <em>Carbide - Discover sources (recommended)</em>.
+                        </p>
+                    </div>
+                    <div class="carbide-card">
+                        <h4><span class="carbide-step-num">2</span> Pick what to watch</h4>
+                        <p>
+                          Open <a href="manage_entities">Manage entities</a>.
+                          You'll see everything discovered in step 1 with
+                          <em>Watching</em> set to off. Use the bulk-action toolbar
+                          or click cells directly to flip <em>Watching</em> on for
+                          things you care about (start with critical hosts or
+                          important sourcetypes).
+                        </p>
+                    </div>
+                    <div class="carbide-card">
+                        <h4><span class="carbide-step-num">3</span> Refresh</h4>
+                        <p>
+                          Wait one 5-minute snapshot cycle, then refresh this page.
+                          You'll see live health and any entities that aren't
+                          reporting. Configure alert actions in
+                          Settings &#8250; Searches for the four alerts that ship
+                          with the app.
+                        </p>
+                    </div>
+                </div>
+                <p style="color:#90a4ae;font-size:12px;margin-top:14px;">
+                  Need recommended threshold values?
+                  <a href="settings">Settings &#8250; Use recommended defaults</a>
+                  applies sensible bootstrap values for max gap, max latency, schedule.
+                </p>
+            </html>
+        </panel>
+    </row>
+
+    <row depends="$show_dashboard$">
+        <panel>
+            <title>Currently watching</title>
+            <single>
+                <search base="home_kv_counts">
+                    <query>| stats first(monitored_count) as count</query>
+                </search>
+                <option name="underLabel">entities</option>
+                <option name="colorBy">value</option>
+                <option name="rangeColors">["0x4ea1f2","0x4ea1f2"]</option>
+                <option name="height">110</option>
+            </single>
+        </panel>
+        <panel>
+            <title>Healthy</title>
+            <single>
+                <search>
+                    <query>`carbide_cached_status` | search status="OK" | stats count</query>
+                    <earliest>0</earliest><latest></latest>
+                </search>
+                <option name="underLabel">OK</option>
+                <option name="colorBy">value</option>
+                <option name="rangeColors">["0x53a051","0x53a051"]</option>
+                <option name="height">110</option>
+            </single>
+        </panel>
+        <panel>
+            <title>Delayed</title>
+            <single>
+                <search>
+                    <query>`carbide_cached_status` | search status="LATE" | stats count</query>
+                    <earliest>0</earliest><latest></latest>
+                </search>
+                <option name="underLabel">⚠ LATE</option>
+                <option name="colorBy">value</option>
+                <option name="colorMode">block</option>
+                <option name="useColors">1</option>
+                <option name="rangeValues">[0,1]</option>
+                <option name="rangeColors">["0x53a051","0xf8be34","0xf8be34"]</option>
+                <option name="height">110</option>
+                <drilldown>
+                    <link target="_blank">manage_entities?form.status_tok=LATE</link>
+                </drilldown>
+            </single>
+        </panel>
+        <panel>
+            <title>Missing</title>
+            <single>
+                <search>
+                    <query>`carbide_cached_status` | search status="DOWN" OR status="CRITICAL" | stats count</query>
+                    <earliest>0</earliest><latest></latest>
+                </search>
+                <option name="underLabel">✗ DOWN / CRITICAL</option>
+                <option name="colorBy">value</option>
+                <option name="colorMode">block</option>
+                <option name="useColors">1</option>
+                <option name="rangeValues">[0,1]</option>
+                <option name="rangeColors">["0x53a051","0xdc4e41","0xdc4e41"]</option>
+                <option name="height">110</option>
+                <drilldown>
+                    <link target="_blank">manage_entities?form.status_tok=DOWN,CRITICAL</link>
+                </drilldown>
+            </single>
+        </panel>
+        <panel>
+            <title>Snoozed</title>
+            <single>
+                <search>
+                    <query>`carbide_cached_status` | search status="MAINT" | stats count</query>
+                    <earliest>0</earliest><latest></latest>
+                </search>
+                <option name="underLabel">🔧 in maintenance</option>
+                <option name="colorBy">value</option>
+                <option name="rangeColors">["0x4ea1f2","0x4ea1f2"]</option>
+                <option name="height">110</option>
+            </single>
+        </panel>
+    </row>
+
+    <row depends="$show_dashboard$">
+        <panel>
+            <title>What needs attention right now</title>
+            <table>
+                <search>
+                    <query>
+                        `carbide_cached_status`
+                        | `carbide_friendly_status`
+                        | search (status="DOWN" OR status="CRITICAL" OR status="LATE")
+                        | `carbide_humanize_duration(current_gap)`
+                        | `carbide_humanize_duration(current_latency)`
+                        | eval entity_label = case(entity_type="host", "host", 1=1, "source")
+                        | sort - case(status="CRITICAL",3, status="DOWN",2, status="LATE",1, 1=1, 0), -current_gap
+                        | head 25
+                        | table status_h, entity_label, entity_key, current_gap_h, current_latency_h, tags
+                        | rename
+                            status_h as "status",
+                            entity_label as "type",
+                            entity_key as "entity",
+                            current_gap_h as "no events for",
+                            current_latency_h as "ingest delay",
+                            tags as "tags"
+                    </query>
+                    <earliest>0</earliest>
+                    <latest></latest>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="rowNumbers">false</option>
+                <option name="count">25</option>
+                <format type="color" field="status">
+                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"· Just added":#888888}</colorPalette>
+                </format>
+                <drilldown>
+                    <condition field="entity">
+                        <link target="_blank">manage_entities?form.search_tok=$click.value$</link>
+                    </condition>
+                </drilldown>
+            </table>
+        </panel>
+    </row>
+
+    <row depends="$show_dashboard$">
+        <panel>
+            <title>Auto-discovered entities awaiting review (monitored=0)</title>
+            <table>
+                <search>
+                    <query>
+                        | inputlookup carbide_tracked_hosts_lookup
+                        | eval entity_type="host"
+                        | append [ | inputlookup carbide_tracked_sources_lookup | eval entity_type="source" ]
+                        | where monitored=0
+                        | eval first_seen_h = strftime(first_seen,"%Y-%m-%d %H:%M:%S")
+                        | sort - first_seen
+                        | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h
+                        | rename
+                            entity_type as "type",
+                            entity_key as "entity",
+                            tracking_mode as "mode",
+                            first_seen_h as "first seen"
+                    </query>
+                    <earliest>0</earliest>
+                    <latest></latest>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">15</option>
+                <drilldown>
+                    <condition field="entity">
+                        <link target="_blank">manage_entities?form.search_tok=$click.value$</link>
+                    </condition>
+                </drilldown>
+            </table>
+        </panel>
+    </row>
+
+    <row depends="$show_dashboard$">
+        <panel>
+            <html>
+                <p style="color:#90a4ae;font-size:13px;margin:0;">
+                  Looking for more?
+                  <a href="manage_entities" style="color:#4ea1f2;">Manage entities</a> ·
+                  <a href="manage_suggestions" style="color:#4ea1f2;">Threshold suggestions</a> ·
+                  <a href="trends" style="color:#4ea1f2;">History</a>
+                </p>
+            </html>
+        </panel>
+    </row>
+</form>

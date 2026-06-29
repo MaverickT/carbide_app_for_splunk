@@ -1,0 +1,149 @@
+<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
+    <label>Threshold Suggestions</label>
+    <description>Proposes max_latency_seconds and max_gap_seconds per monitored entity, computed from the past 7 days of indexed metadata. suggested_max_latency = round(P95(latency) × 1.5). suggested_max_gap = round(avg_interval × 5), where avg_interval = (max(_time) - min(_time)) / event_count. Review the deltas, then "Apply suggested ..." pushes the new value to every visible KV row in one batched write.</description>
+
+    <fieldset submitButton="false" autoRun="true">
+        <input type="dropdown" token="delta_tok" searchWhenChanged="true">
+            <label>Show</label>
+            <choice value="all">all rows</choice>
+            <choice value="diff">only rows where suggestion differs by &gt; 10%</choice>
+            <default>diff</default>
+        </input>
+        <input type="text" token="search_tok" searchWhenChanged="true">
+            <label>Filter (regex)</label>
+            <default>.*</default>
+        </input>
+    </fieldset>
+
+    <row>
+        <panel>
+            <html>
+                <div class="carbide-toolbar">
+                    <div class="carbide-toolbar-info">
+                        <strong>How to read this:</strong> the <em>delta</em> columns show <code>suggested - current</code>; positive means the suggestion is more lenient (longer window allowed) and negative means it's tighter. Use "Apply" with care on entities where the historical baseline isn't representative (recently bootstrapped sources, post-incident periods, etc.).
+                    </div>
+                </div>
+            </html>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Hosts - suggestions</title>
+            <table id="carbide_threshold_hosts_table">
+                <search>
+                    <query>
+                        `carbide_threshold_suggestions_hosts`
+                        | where match(coalesce(entity_key,""), "$search_tok$")
+                        | where if("$delta_tok$"="all", 1=1, abs(coalesce(delta_max_latency,0))/coalesce(current_max_latency,1) &gt; 0.1 OR abs(coalesce(delta_max_gap,0))/coalesce(current_max_gap,1) &gt; 0.1)
+                        | sort + entity_key
+                        | eval p95_latency = round(p95_latency, 1)
+                        | eval avg_interval = round(avg_interval, 1)
+                        | table _key, entity_key,
+                                current_max_latency, suggested_max_latency, delta_max_latency,
+                                current_max_gap, suggested_max_gap, delta_max_gap,
+                                event_count, p95_latency, avg_interval
+                        | rename
+                            entity_key as "entity",
+                            current_max_latency as "current_max_latency",
+                            suggested_max_latency as "suggested_max_latency",
+                            delta_max_latency as "Δ latency",
+                            current_max_gap as "current_max_gap",
+                            suggested_max_gap as "suggested_max_gap",
+                            delta_max_gap as "Δ gap",
+                            event_count as "events (7d)",
+                            p95_latency as "p95 latency (s)",
+                            avg_interval as "avg interval (s)"
+                    </query>
+                    <earliest>0</earliest>
+                    <latest></latest>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">50</option>
+                <drilldown>
+                    <condition field="entity">
+                        <link target="_blank">manage_entities?form.search_tok=$click.value$</link>
+                    </condition>
+                </drilldown>
+            </table>
+            <html>
+                <div class="carbide-apply-row">
+                    <div class="carbide-apply-all-wrap"
+                         data-carbide-collection="carbide_tracked_hosts"
+                         data-carbide-bulk-target="carbide_threshold_hosts_table"
+                         data-carbide-target-field="max_latency_seconds"
+                         data-carbide-source-column="suggested_max_latency">
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_latency to visible</button>
+                    </div>
+                    <div class="carbide-apply-all-wrap"
+                         data-carbide-collection="carbide_tracked_hosts"
+                         data-carbide-bulk-target="carbide_threshold_hosts_table"
+                         data-carbide-target-field="max_gap_seconds"
+                         data-carbide-source-column="suggested_max_gap">
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_gap to visible</button>
+                    </div>
+                </div>
+            </html>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Sources - suggestions</title>
+            <table id="carbide_threshold_sources_table">
+                <search>
+                    <query>
+                        `carbide_threshold_suggestions_sources`
+                        | where match(coalesce(entity_key,""), "$search_tok$")
+                        | where if("$delta_tok$"="all", 1=1, abs(coalesce(delta_max_latency,0))/coalesce(current_max_latency,1) &gt; 0.1 OR abs(coalesce(delta_max_gap,0))/coalesce(current_max_gap,1) &gt; 0.1)
+                        | sort + entity_key
+                        | eval p95_latency = round(p95_latency, 1)
+                        | eval avg_interval = round(avg_interval, 1)
+                        | table _key, entity_key,
+                                current_max_latency, suggested_max_latency, delta_max_latency,
+                                current_max_gap, suggested_max_gap, delta_max_gap,
+                                event_count, p95_latency, avg_interval
+                        | rename
+                            entity_key as "entity",
+                            current_max_latency as "current_max_latency",
+                            suggested_max_latency as "suggested_max_latency",
+                            delta_max_latency as "Δ latency",
+                            current_max_gap as "current_max_gap",
+                            suggested_max_gap as "suggested_max_gap",
+                            delta_max_gap as "Δ gap",
+                            event_count as "events (7d)",
+                            p95_latency as "p95 latency (s)",
+                            avg_interval as "avg interval (s)"
+                    </query>
+                    <earliest>0</earliest>
+                    <latest></latest>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">50</option>
+                <drilldown>
+                    <condition field="entity">
+                        <link target="_blank">manage_entities?form.type_tok=source&amp;form.search_tok=$click.value$</link>
+                    </condition>
+                </drilldown>
+            </table>
+            <html>
+                <div class="carbide-apply-row">
+                    <div class="carbide-apply-all-wrap"
+                         data-carbide-collection="carbide_tracked_sources"
+                         data-carbide-bulk-target="carbide_threshold_sources_table"
+                         data-carbide-target-field="max_latency_seconds"
+                         data-carbide-source-column="suggested_max_latency">
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_latency to visible</button>
+                    </div>
+                    <div class="carbide-apply-all-wrap"
+                         data-carbide-collection="carbide_tracked_sources"
+                         data-carbide-bulk-target="carbide_threshold_sources_table"
+                         data-carbide-target-field="max_gap_seconds"
+                         data-carbide-source-column="suggested_max_gap">
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_gap to visible</button>
+                    </div>
+                </div>
+            </html>
+        </panel>
+    </row>
+</form>

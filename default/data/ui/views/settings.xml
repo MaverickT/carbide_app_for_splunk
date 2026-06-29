@@ -1,0 +1,230 @@
+<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
+    <label>Settings</label>
+    <description>Bootstrap defaults applied to NEW entities at discovery time, app health checks, and the audit log of inline edits. Existing entities keep their per-row thresholds until you edit them.</description>
+
+    <row>
+        <panel>
+            <html>
+                <div class="carbide-defaults-cta">
+                    <p>Not sure what numbers to put here? Click <strong>Use recommended defaults</strong>: <code>default_monitored=0</code>, <code>default_max_latency_seconds=600</code>, <code>default_max_gap_seconds=3600</code>, <code>default_monitoring_schedule=247</code>. Existing rows are left alone; only newly discovered entities pick these up.</p>
+                    <button id="carbide_use_recommended_defaults"
+                            class="btn btn-primary"
+                            data-carbide-collection="carbide_settings"
+                            data-carbide-target="carbide_settings_table">Use recommended defaults</button>
+                </div>
+            </html>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Current settings</title>
+            <table id="carbide_settings_table"
+                   data-carbide-collection="carbide_settings"
+                   data-carbide-editable="setting_value">
+                <search>
+                    <query>
+                        | inputlookup carbide_settings_lookup
+                        | sort + setting_key
+                        | table _key, setting_key, setting_value
+                    </query>
+                    <earliest>0</earliest>
+                    <latest></latest>
+                </search>
+                <option name="drilldown">none</option>
+                <option name="count">100</option>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Add / overwrite setting</title>
+            <html>
+                <div class="carbide-form">
+                    <label>Key
+                        <select id="carbide_new_setting_key">
+                            <option value="default_monitored">default_monitored (0 or 1)</option>
+                            <option value="default_max_latency_seconds">default_max_latency_seconds</option>
+                            <option value="default_max_gap_seconds">default_max_gap_seconds</option>
+                            <option value="default_monitoring_schedule">default_monitoring_schedule (247|weekdays|business_hours)</option>
+                            <option value="business_hours_start">business_hours_start (HHMM, e.g. 800)</option>
+                            <option value="business_hours_end">business_hours_end (HHMM, e.g. 1600)</option>
+                            <option value="business_timezone">business_timezone (IANA, e.g. Europe/Ljubljana)</option>
+                        </select>
+                    </label>
+                    <label>Value <input type="text" id="carbide_new_setting_value" placeholder="e.g. 600" /></label>
+                    <button id="carbide_save_setting"
+                            class="btn btn-primary"
+                            data-carbide-collection="carbide_settings"
+                            data-carbide-target="carbide_settings_table">Save</button>
+                </div>
+                <hr/>
+                <p>Settings stored here are read by discovery searches at run time via the <code>carbide_setting_num</code> / <code>carbide_setting_str</code> macros and override the corresponding <code>carbide_default_*</code> macros. Changes apply to newly discovered entities only; existing rows keep their per-row thresholds.</p>
+            </html>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>App health (self-test)</title>
+            <table>
+                <search>
+                    <query>
+                        | makeresults
+                        | eval check="carbide_settings collection reachable"
+                        | append [ | inputlookup carbide_settings_lookup | stats count as rows | eval check="carbide_settings collection reachable" ]
+                        | stats max(rows) as rows by check
+                        | eval status = if(isnotnull(rows), "ok", "fail")
+                        | append [
+                            | makeresults
+                            | append [ | inputlookup carbide_tracked_hosts_lookup | stats count as rows ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_tracked_hosts collection reachable"
+                            | eval status = if(isnotnull(rows), "ok", "fail")
+                          ]
+                        | append [
+                            | makeresults
+                            | append [ | inputlookup carbide_tracked_sources_lookup | stats count as rows ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_tracked_sources collection reachable"
+                            | eval status = if(isnotnull(rows), "ok", "fail")
+                          ]
+                        | append [
+                            | makeresults
+                            | append [ | inputlookup carbide_entity_filters_lookup | stats count as rows ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_entity_filters collection reachable (seeded if &gt; 0)"
+                            | eval status = if(isnotnull(rows) AND rows&gt;0, "ok", if(isnotnull(rows), "warn (empty)", "fail"))
+                          ]
+                        | append [
+                            | makeresults
+                            | append [ | inputlookup carbide_entity_filters_seed | stats count as rows ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_entity_filters_seed CSV present"
+                            | eval status = if(isnotnull(rows) AND rows&gt;0, "ok", "fail")
+                          ]
+                        | append [
+                            | makeresults
+                            | append [
+                                | tstats count where index=`carbide_index` earliest=-7d@d
+                              ]
+                            | stats max(count) as rows
+                            | eval check="dedicated index `carbide_index` reachable + recent snapshots"
+                            | eval status = case(rows&gt;0, "ok", isnotnull(rows), "warn (no events in 7d)", 1=1, "fail")
+                          ]
+                        | append [
+                            | makeresults
+                            | append [
+                                | `carbide_entity_filter("hosts")` index=*
+                                | head 1
+                                | stats count as rows
+                              ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_entity_filter(\"hosts\") macro returns a valid clause"
+                            | eval status = if(isnotnull(rows), "ok", "fail")
+                          ]
+                        | where isnotnull(check)
+                        | table check, status, rows
+                    </query>
+                </search>
+                <option name="drilldown">none</option>
+                <format type="color" field="status">
+                    <colorPalette type="map">{"ok":#53a051,"warn (empty)":#f8be34,"warn (no events in 7d)":#f8be34,"fail":#dc4e41}</colorPalette>
+                </format>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Saved searches</title>
+            <table>
+                <search>
+                    <query>
+                        | rest /servicesNS/-/carbide_app_for_splunk/saved/searches splunk_server=local
+                        | search title="Carbide -*"
+                        | eval next_run = if(isnull(next_scheduled_time) OR next_scheduled_time="", "n/a", next_scheduled_time)
+                        | table title cron_schedule disabled is_scheduled next_run
+                        | rename title as "saved search"
+                    </query>
+                </search>
+                <option name="drilldown">none</option>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>KV store row counts</title>
+            <table>
+                <search>
+                    <query>
+                        | makeresults
+                        | append [ | inputlookup carbide_tracked_hosts_lookup   | stats count as rows | eval collection="carbide_tracked_hosts"   ]
+                        | append [ | inputlookup carbide_tracked_sources_lookup | stats count as rows | eval collection="carbide_tracked_sources" ]
+                        | append [ | inputlookup carbide_settings_lookup        | stats count as rows | eval collection="carbide_settings"        ]
+                        | append [ | inputlookup carbide_entity_filters_lookup  | stats count as rows | eval collection="carbide_entity_filters"  ]
+                        | append [ | inputlookup carbide_status_history_lookup  | stats count as rows | eval collection="carbide_status_history"  ]
+                        | where isnotnull(collection)
+                        | table collection rows
+                    </query>
+                </search>
+                <option name="drilldown">none</option>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Audit trail (every KV write under this app)</title>
+            <html>
+                <p>Sourced from Splunk's built-in splunkd access log (<code>index=_internal sourcetype=splunkd_access</code>) — every REST call to the Carbide collections is recorded automatically with the caller and the URI. No app-side audit code required.</p>
+            </html>
+            <input type="time" token="audit_time_tok" searchWhenChanged="true">
+                <label>Range</label>
+                <default>
+                    <earliest>-7d@h</earliest>
+                    <latest>now</latest>
+                </default>
+            </input>
+            <table>
+                <search>
+                    <query>
+                        index=_internal sourcetype=splunkd_access
+                        uri_path="*/storage/collections/data/carbide_*"
+                        (method=POST OR method=DELETE)
+                        | eval segments    = split(uri_path, "/")
+                        | eval last_seg    = mvindex(segments, -1)
+                        | eval prev_seg    = mvindex(segments, -2)
+                        | eval is_root_post = (method="POST" AND prev_seg="data")
+                        | eval is_batch     = (last_seg="batch_save")
+                        | eval action     = case(
+                            method="DELETE",                                     "delete",
+                            is_batch,                                            "bulk_save",
+                            is_root_post,                                        "create",
+                            method="POST",                                       "update",
+                            1=1,                                                 method)
+                        | eval collection = case(
+                            is_batch,     mvindex(segments, -3),
+                            is_root_post, last_seg,
+                            1=1,          prev_seg)
+                        | eval kv_key     = case(
+                            is_batch OR is_root_post, "-",
+                            1=1,                       last_seg)
+                        | sort - _time
+                        | head 200
+                        | table _time, user, action, collection, kv_key, status, uri_path
+                        | rename
+                            kv_key as "_key",
+                            uri_path as "URI"
+                    </query>
+                    <earliest>$audit_time_tok.earliest$</earliest>
+                    <latest>$audit_time_tok.latest$</latest>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">50</option>
+            </table>
+        </panel>
+    </row>
+</form>

@@ -1,0 +1,51 @@
+{
+    "schemaVersion": "2.0.0",
+    "info": {
+        "title": "Carbide for Splunk",
+        "id": {
+            "group": null,
+            "name": "carbide_app_for_splunk",
+            "version": "1.0.0"
+        },
+        "author": [
+            { "name": "Ziga Humar", "email": null, "company": null }
+        ],
+        "releaseDate": null,
+        "description": "Lightweight data-source gap & latency monitor. Detect when monitored hosts, sources or sourcetypes stop reporting; alert when they do. tstats-powered, KV-store backed, inline-editable.",
+        "classification": {
+            "intendedAudience": "IT",
+            "categories": ["Health-Monitoring", "IT Operations"],
+            "developmentStatus": "Production"
+        },
+        "commonInformationModels": null,
+        "license": {
+            "name": "Apache-2.0",
+            "text": "LICENSE",
+            "uri": null
+        },
+        "privacyPolicy": null,
+        "releaseNotes": {
+            "name": null,
+            "text": "README.md",
+            "uri": null
+        }
+    },
+    "dependencies": null,
+    "tasks": null,
+    "inputGroups": null,
+    "incompatibleApps": null,
+    "platformRequirements": {
+        "splunk": {
+            "Enterprise": ">=8.0"
+        }
+    },
+    "supportedDeployments": [
+        "_standalone",
+        "_distributed",
+        "_search_head_clustering"
+    ],
+    "targetWorkloads": [
+        "_search_heads",
+        "_indexers"
+    ]
+}

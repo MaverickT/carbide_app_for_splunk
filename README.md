@@ -1,0 +1,424 @@
+# Carbide for Splunk
+
+Lightweight data-source gap & latency monitor for Splunk. Detect when
+hosts, sources or sourcetypes stop reporting; alert when they do. No
+licence key, no external dependencies, no data-model accelerations
+required.
+
+## Quick start (5 minutes)
+
+1. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
+   and restart Splunk.
+2. **Open** the app — you'll land on a 3-step Welcome page.
+3. **Run discovery once.** In Settings > Searches, run
+   *Carbide - Discover hosts (recommended)* and
+   *Carbide - Discover sources (recommended)*.
+4. **Pick what to watch.** Open *Manage entities*, filter on what
+   matters, click **Start watching** in the quick actions row.
+5. **Wait one cycle (5 min)** and refresh the Home page — health is
+   live, alerts are armed. Wire alert actions in Settings > Searches
+   on the four alert saved searches when you're ready.
+
+That's it. Everything else below is reference. New to the operator
+mental model? Open Home → Manage entities → Alerts. The Advanced menu
+holds entity filters, threshold suggestions, history, and settings
+for when you need them.
+
+Carbide is opinionated about the things TrackMe gets right and quick
+about the things TrackMe makes complicated:
+
+- **Two tracking methods**: HOST entities (`index+host` / `host+source` /
+  `host+sourcetype`) and SOURCE entities (`index+source` /
+  `index+sourcetype`). Each entity has its own thresholds.
+- **Two thresholds per entity**: `max_latency_seconds` (delay between
+  `_time` and `_indextime`) and `max_gap_seconds` (how long since the
+  last event was generated).
+- **`tstats`-only**: discovery and live status calculation never scan
+  raw events.
+- **Inline + bulk editing**: cells in the Manage dashboards are
+  click-to-edit. A bulk toolbar applies a value to every row in the
+  current filter via a single KV `batch_save` call (one POST regardless
+  of row count). Maintenance windows have `maintenance_from` /
+  `maintenance_until` so you can also schedule a window for the future
+  (`+15min` / `+1h` / `+1d` / ...).
+- **Tags per entity** for ad-hoc grouping ("prod", "payments-team",
+  "vendor:zscaler"). All dashboards filter on a tag regex.
+- **Threshold suggestions** dashboard: 7-day P95 latency × 1.5 and
+  average interval × 5 are proposed per entity; "Apply suggested ... to
+  visible" pushes the proposals to every visible row in one batched
+  write.
+- **Two alerts (Hosts, Sources)** with notable severity/urgency derived
+  per-result from `asset_criticality` (manage assets) — `medium`
+  fallback for unmapped hosts and all sources. ES notable + email
+  actions ship pre-templated; fill in `action.email.to` to enable.
+- **Settings → Audit trail** sources from Splunk's built-in
+  `splunkd_access` log, so every KV write under the app is recorded
+  automatically without any browser-side audit code.
+- **Per-tracking-type include/exclude rules** on any of
+  `index` / `host` / `source` / `sourcetype`. Patterns support Splunk
+  wildcards (`*`, `?`). Default rules ship as a seed CSV that's
+  preserved across upgrades.
+- **Dedicated `carbide` index** for history & trending (name is
+  configurable via the `carbide_index` macro).
+- **Change-only history**: snapshots only `| collect` an event when the
+  status differs from the previously persisted state; KV writeback is
+  also gated on (status changed OR `last_event_time` advanced). A
+  cheap hourly heartbeat for non-OK entities keeps trending queries
+  anchored.
+- **Audit trail** of every inline edit (`sourcetype="carbide:audit"`).
+- **Self-test panel** verifies every collection, the entity-filter
+  macro, the dedicated index and the saved searches in one glance.
+- **Alerts** for DOWN / LATE / CRITICAL ship with sensible suppression.
+
+## Status model
+
+| Status   | Meaning                                                           |
+|----------|-------------------------------------------------------------------|
+| OK        | Within both `max_gap_seconds` and `max_latency_seconds`.         |
+| LATE      | Events still arriving but ingest latency exceeds `max_latency`.  |
+| DOWN      | No events at all within `max_gap_seconds`.                       |
+| CRITICAL  | Both LATE and DOWN — i.e. the trickle that does arrive is stale. |
+| MAINT     | Snoozed by admin (`maintenance_until > now()`); alerts skip it.  |
+| OFF_HOURS | Outside the entity's `monitoring_schedule` window; alerts skip.  |
+| NEW       | Newly discovered and still within `carbide_grace_period`.        |
+
+Home, Manage entities, and alerts all read from the cached path that the
+snapshot saved searches keep within 5 minutes of live. For ad-hoc live
+status (no staleness), run `` | `carbide_host_status` `` or
+`` | `carbide_source_status` `` directly in the Search bar — same macro
+the snapshot uses, just dispatched on demand.
+
+## Installation
+
+```
+$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/
+```
+
+On indexers (distributed deployments), also deploy `default/indexes.conf`
+or the equivalent in a separate indexes app, so the `carbide` index
+exists.
+
+Restart Splunk (KV-store collections register on first load). On the
+search head, open the **Carbide for Splunk** app and:
+
+1. Open **Settings** and adjust defaults if you want different
+   bootstrap thresholds. Values stored here override the
+   `carbide_default_*` macros at discovery time.
+2. Optionally open **Manage > Entity Filters** and add include/exclude
+   rules. Defaults shipped via seed CSV exclude internal/summary/history
+   indexes and whitelist a couple of stable syslog source paths.
+3. Let the **Discover Hosts (host_sourcetype)** and **Discover Sources
+   (index_sourcetype)** searches run once each (they're scheduled
+   hourly and also runnable on demand from the Searches & Reports UI).
+4. Open **Manage > Hosts** / **Manage > Sources** and flip
+   `monitored = 1` on the entities you actually want Carbide to watch.
+   Use the bulk-action toolbar to do it for many at once.
+
+## Scheduled monitoring (workweek / business hours / holidays)
+
+Some sources don't need 24/7 watching — a backup-batch source that only
+runs Monday-Friday during business hours shouldn't page anyone at 02:00
+on a Sunday. Carbide lets each entity carry a `monitoring_schedule`
+preset:
+
+| Schedule          | Meaning                                                       |
+|-------------------|---------------------------------------------------------------|
+| `247`             | Always monitored (default for new entities).                  |
+| `weekdays`        | Mon-Fri only. Weekends + holidays = `🌙 Off-hours`.          |
+| `business_hours`  | Mon-Fri within `business_hours_start` / `business_hours_end`. Outside that window = `🌙 Off-hours`. |
+
+Outside the active window the entity reports status `OFF_HOURS`. Alerts,
+the ES risk search, and the hourly heartbeat all skip OFF_HOURS rows.
+The snapshot saved searches still update the KV row's `last_status` so
+the live view stays honest, but transitions into and out of OFF_HOURS
+are **not** indexed (keeps the carbide index focused on real outages).
+An entity returning from OFF_HOURS *into a non-OK state* (e.g. Monday
+08:00 and the data source is already broken) **is** logged — you don't
+miss real Monday-morning incidents.
+
+Set the per-entity schedule via the **Schedule** column in
+*Manage entities* (dropdown). Use the quick-action toolbar to apply
+`📅 24/7` / `📅 Weekdays` / `📅 Business hrs` to every row matching the
+current filter.
+
+Configure the global business-hours window in *Advanced > Settings*:
+
+- `business_hours_start` — HHMM as a number, default `800`.
+- `business_hours_end` — HHMM as a number, default `1600`.
+- `business_timezone` — IANA name (default `"UTC"`; set to your local
+  zone like `"Europe/Ljubljana"`). All weekend / hour / holiday checks
+  use this timezone, regardless of which user dispatches the search or
+  which SH they're connected to.
+- `default_monitoring_schedule` — the preset newly discovered entities
+  receive (default `"247"`).
+
+Manage the global holiday list at **Manage holidays**. Two date formats
+are supported in the same `date` column:
+
+- `YYYY-MM-DD` with `recurring=0` — applies only to that specific year.
+- `MM-DD` with `recurring=1` — applies every year on that month/day.
+
+Empty holiday list = no holidays, the schedule only respects weekends
+plus business hours. The list is global; if your SOC straddles regions
+with different calendars, populate the union and use per-entity `tags`
+to differentiate (the tag filter still works inside an OFF_HOURS
+window).
+
+## Maintenance windows
+
+Click the **maint from** or **maint until** cell on any row in Manage >
+Hosts/Sources and pick a duration (`off`, `+15 min`, `+1 hour`, ...,
+`+1 week`). Maintenance is active when
+`coalesce(maintenance_from,0) <= now() AND maintenance_until > now()` —
+leave `maintenance_from` at `0` (the default) for "starts immediately",
+or set it to a future time to schedule a window ahead of time. The
+status macro reports the entity as `MAINT` for the duration; alerts
+skip MAINT rows automatically. Use the bulk-action toolbar or
+`Threshold Suggestions > Apply` for fleet-wide changes.
+
+## Tracking modes
+
+Discovery searches for the non-default tracking modes ship `disabled=1`.
+Enable any of them from **Settings > Searches** when you need that axis:
+
+- `Carbide - Discover hosts (advanced: index + host)`
+- `Carbide - Discover hosts (advanced: host + source)`
+- `Carbide - Discover sources (advanced: index + source)`
+
+Default-enabled:
+
+- `Carbide - Discover hosts (recommended)`
+- `Carbide - Discover sources (recommended)`
+
+`host_sourcetype` and `index_sourcetype` are the recommended primary
+modes for most deployments. The status macro fans every live tstats row
+out to all possible entity-key shapes, so opting into the other modes is
+mostly a configuration step — but it also triples the per-row fan-out
+during the mvexpand stage, which matters on very large fleets. If you
+only ever use `host_sourcetype`, you can shave the fan-out by editing
+`carbide_host_status` (Settings > Search macros) and removing `ek_ih`
+and `ek_hs` from the `mvappend` line.
+
+## What runs out of the box
+
+| Saved search                                       | Schedule    | Default |
+|----------------------------------------------------|-------------|---------|
+| Carbide - Seed Entity Filters                      | hourly      | on      |
+| Carbide - Discover hosts (recommended)             | hourly      | on      |
+| Carbide - Discover sources (recommended)           | hourly      | on      |
+| Carbide - Status Snapshot: Hosts                   | every 5 min | on      |
+| Carbide - Status Snapshot: Sources                 | every 5 min | on      |
+| Carbide - Heartbeat: Non-OK entities               | hourly      | on      |
+| Carbide - Alert: Hosts                             | every 5 min | on      |
+| Carbide - Alert: Sources                           | every 5 min | on      |
+
+The **Seed Entity Filters** search is idempotent: it reads the read-only
+CSV at `default/data/lookups/carbide_entity_filters_seed.csv` and
+inserts its rows into `carbide_entity_filters` **only when the
+collection is empty** — so admin customizations survive app upgrades.
+
+The **Status Snapshot** searches now write to KV only when status
+changed or `last_event_time` advanced, and emit an event to the carbide
+index only when status changed. Steady-state windows produce zero KV
+writes and zero indexed events. Each transition event records both
+`status` and `previous_status`. The **Heartbeat** search emits one event
+per hour for every entity still in a non-OK state so that window-bounded
+trend queries always have an anchor point.
+
+## How latency / gap are computed
+
+For each tracked entity over `carbide_status_window` (default `-24h@h`):
+
+```spl
+| tstats max(_time) as last_event_time,
+         max(_indextime) as last_indextime,
+         avg(eval(_indextime - _time)) as avg_latency,
+         count
+  where `carbide_entity_filter("hosts")` AND index!=`carbide_index` earliest=`carbide_status_window`
+  by index, host, sourcetype, source
+```
+
+then:
+
+- `current_gap`     = `now() - last_event_time`
+- `current_latency` = recent ingest latency
+- `status`          = `case(...)` as per the Status model above
+
+The status macros merge KV-side configuration with live tstats results
+through `inputlookup ... | append [tstats ...] | stats by entity_key` —
+no `join`, no 50,000-row truncation cap.
+
+## KV-store collections
+
+| Collection                | Purpose                                    |
+|---------------------------|--------------------------------------------|
+| `carbide_tracked_hosts`   | One row per tracked host entity.           |
+| `carbide_tracked_sources` | One row per tracked source entity.         |
+| `carbide_settings`        | Bootstrap defaults consulted by discovery. |
+| `carbide_entity_filters`  | Per-field/per-type include/exclude rules.  |
+| `carbide_status_history`  | Optional short-term status snapshots.      |
+
+Long-term trending is shipped to `` index=`carbide_index` `` (default
+`carbide`) with `sourcetype="carbide:status"`. Audit events for inline
+edits land in the same index with `sourcetype="carbide:audit"`.
+
+To change the destination index name:
+
+1. Edit the `carbide_index` macro (Settings > Advanced search > Search
+   macros) to the new name.
+2. Update `default/indexes.conf` (or `local/indexes.conf` on indexers)
+   so an index with the new name exists.
+3. Restart Splunk.
+
+## Splunk Enterprise Security integration
+
+Carbide ships ES integration in four pieces. The first two are always on
+and silently no-op without ES; the second two are opt-in.
+
+### 1. Notable events (no-op without ES)
+Both alerts (`Carbide - Alert: Hosts`, `Carbide - Alert: Sources`) carry
+`actions = notable,email`. On installs with ES, each match becomes a
+notable event in Incident Review with per-result `severity` / `urgency`
+derived from `asset_criticality` (Manage assets) — `medium` fallback for
+unmapped hosts and all sources. On installs without ES, the notable
+action logs a warning and is skipped — the rest of the alert (including
+email) is unaffected.
+
+### 2. CIM `Alerts` data model alignment (always on)
+`default/props.conf` ships `FIELDALIAS-cim_*` + `EVAL-*` for the
+`carbide:status` sourcetype that map `entity_key` → `dest`, derive
+CIM `severity` / `severity_id` / `type` from `status`, and stamp
+`app` / `vendor_product`. `eventtypes.conf` defines a `carbide_cim_alert`
+eventtype; `tags.conf` tags it with `alert`. Any CIM-aware search
+(`tag=alert`, ES Alerts dashboards, generic correlation searches)
+sees Carbide events out of the box.
+
+### 3. Asset enrichment (works without ES)
+The host status macro does
+```spl
+| lookup carbide_assets_lookup host OUTPUTNEW
+    criticality   AS asset_criticality,
+    owner         AS asset_owner,
+    business_unit AS asset_bu
+```
+Populate `carbide_assets` from **Manage > Manage assets** (the dashboard
+ships with the app) by adding rows manually, OR enable the optional
+*Carbide - Sync ES asset_lookup_by_str to carbide_assets* saved search
+if you have ES + a populated asset framework. Empty collection = no
+enrichment, no errors — the lookup is a best-effort join.
+
+### 4. Risk-based alerting (opt-in)
+*Carbide - Risk: Security data source outage* (ships disabled) emits
+risk events to `index=risk` for every monitored entity tagged
+`security` that is currently DOWN or CRITICAL. ES's risk framework
+picks them up via `risk_object` / `risk_score` / `risk_message`. Tag
+your security-critical data sources (firewall logs, AD, EDR, etc.)
+with `security` in the Manage entities view and enable the saved
+search. When one of them goes dark the asset's risk score climbs in
+proportion to the host's `asset_criticality` (Manage assets), with a
+`20` fallback for unmapped hosts and all sources.
+
+## Search-head clustering
+
+Carbide is SHC-safe out of the box. The pieces that usually bite
+clustered-search-head apps are handled:
+
+- Every KV-store collection in `default/collections.conf` carries
+  `replicate = true`, so the collections replicate automatically.
+- Every saved search has `dispatchAs = owner`, and
+  `metadata/default.meta` pins `[savedsearches] owner = nobody`, so
+  scheduled searches always dispatch as the same logical owner across
+  captain failovers.
+- All config ships under `default/`. Nothing is written to `local/` on
+  any individual member at runtime - which means the deployer bundle is
+  the only source of truth and members never drift.
+- Inline edits, bulk `batch_save` calls, snapshot writebacks, and
+  discovery inserts are all idempotent (`outputlookup key_field=_key`
+  upserts; the seed search no-ops on a non-empty collection). A
+  duplicate dispatch during captain failover rewrites the same row
+  instead of corrupting state.
+- The perf pass eliminated 4 redundant `tstats` invocations per
+  5-minute cycle (alerts now read the cached KV row) and staggered the
+  remaining schedules. The captain isn't a bottleneck.
+
+### Install on SHC
+
+Deploy through the SHC deployer, not by copying to one search head:
+
+```
+cp -r carbide_app_for_splunk \
+  $SPLUNK_HOME/etc/shcluster/apps/
+splunk apply shcluster-bundle \
+  -target https://<sh-captain>:8089 -auth admin:<pwd>
+```
+
+The bundle replicates `default/` to every member.
+
+On the indexer tier, install `default/indexes.conf` separately (it is
+only honored by indexers). For a clustered indexer tier, deploy via the
+cluster master.
+
+### Operating notes on SHC
+
+- **Replication lag**: cached reads on a non-captain SH may trail the
+  captain by a few seconds immediately after a snapshot writeback.
+  Effectively bounded by MongoDB replication lag; sub-second to a few
+  seconds on healthy clusters. Inline-edit then refresh on the same
+  SH always reflects its own write (read-your-own-writes per node).
+- **Brief captain-change windows** may miss one `*/5` cycle. The next
+  run reads the previous state from KV and proceeds. No catch-up is
+  needed.
+- **Suppression state**: `alert.suppress.fields = entity_key` state is
+  captain-local but transferred during failover. Worst case after a
+  captain change: one duplicate alert. Acceptable for a data-source
+  outage channel.
+- **Don't put Carbide files in `local/`** on individual SHs. The
+  app's "deploy once, replicate everywhere" model relies on every
+  member running the same bundle.
+
+## Roles / permissions
+
+Read access is granted to all users; write access (KV stores, lookups,
+saved searches) is restricted to `admin`, `power`, `sc_admin`. Inline
+editing in the Manage views is enforced server-side via the same
+capabilities — non-admin users see read-only tables.
+
+## Files
+
+```
+carbide_app_for_splunk/
+├── app.manifest               Splunkbase metadata
+├── default/
+│   ├── app.conf
+│   ├── collections.conf       KV-store collections
+│   ├── transforms.conf        Lookup definitions (KV + seed CSV)
+│   ├── macros.conf            tstats discovery + status + helpers
+│   ├── savedsearches.conf     Seed, discovery, snapshots, heartbeat, alerts
+│   ├── eventtypes.conf
+│   ├── tags.conf
+│   ├── props.conf             carbide:status sourcetype parsing
+│   ├── indexes.conf           Dedicated `carbide` index (install on indexers)
+│   └── data/
+│       ├── lookups/
+│       │   └── carbide_entity_filters_seed.csv
+│       └── ui/
+│           ├── nav/default.xml
+│           └── views/
+│               ├── home.xml
+│               ├── manage_entities.xml
+│               ├── manage_assets.xml
+│               ├── manage_holidays.xml
+│               ├── manage_entity_filters.xml
+│               ├── manage_suggestions.xml
+│               ├── settings.xml
+│               ├── trends.xml
+│               └── alerts.xml
+├── appserver/static/
+│   ├── carbide_inline_edit.js Inline editor + bulk actions + audit
+│   └── carbide.css
+├── static/
+│   └── README_icons.txt       Where to drop appIcon*.png for Splunkbase
+├── metadata/default.meta
+├── README.md
+└── LICENSE
+```

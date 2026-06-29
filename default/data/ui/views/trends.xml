@@ -1,0 +1,165 @@
+<form version="1.1" theme="dark" stylesheet="carbide.css">
+    <label>Trends</label>
+    <description>Historical view of status TRANSITIONS. Snapshots only log when an entity changes state (or is observed for the first time), so the index records changes -- not steady state. Use the Overview / Hosts / Sources tabs for the live "currently OK vs not" picture.</description>
+
+    <fieldset submitButton="false" autoRun="true">
+        <input type="time" token="time_tok" searchWhenChanged="true">
+            <label>Time range</label>
+            <default>
+                <earliest>-7d@h</earliest>
+                <latest>now</latest>
+            </default>
+        </input>
+        <input type="dropdown" token="type_tok" searchWhenChanged="true">
+            <label>Entity type</label>
+            <choice value="*">Both</choice>
+            <choice value="host">host</choice>
+            <choice value="source">source</choice>
+            <default>*</default>
+        </input>
+    </fieldset>
+
+    <search id="transitions_base">
+        <query>
+            index=`carbide_index` sourcetype="carbide:status" entity_type="$type_tok$"
+        </query>
+        <earliest>$time_tok.earliest$</earliest>
+        <latest>$time_tok.latest$</latest>
+    </search>
+
+    <row>
+        <panel>
+            <title>State transitions over time (target status)</title>
+            <chart>
+                <search base="transitions_base">
+                    <query>
+                        | timechart count by status
+                    </query>
+                </search>
+                <option name="charting.chart">column</option>
+                <option name="charting.chart.stackMode">stacked</option>
+                <option name="charting.fieldColors">{"OK":0x53a051,"LATE":0xf8be34,"DOWN":0xdc4e41,"CRITICAL":0x9b1d1d,"MAINT":0x4ea1f2,"OFF_HOURS":0x6c63ff,"NEW":0x888888}</option>
+                <option name="charting.legend.placement">bottom</option>
+                <option name="charting.axisTitleY.text">transition events</option>
+            </chart>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Transition matrix (from → to)</title>
+            <chart>
+                <search base="transitions_base">
+                    <query>
+                        | eval transition = coalesce(previous_status,"NEW") . " &#8594; " . status
+                        | stats count by transition
+                        | sort - count
+                    </query>
+                </search>
+                <option name="charting.chart">bar</option>
+                <option name="charting.legend.placement">none</option>
+            </chart>
+        </panel>
+        <panel>
+            <title>Most flappy entities (top 20 by transition count)</title>
+            <chart>
+                <search base="transitions_base">
+                    <query>
+                        | stats count as transitions by entity_key
+                        | sort - transitions
+                        | head 20
+                    </query>
+                </search>
+                <option name="charting.chart">bar</option>
+                <option name="charting.legend.placement">none</option>
+            </chart>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Recent transitions</title>
+            <table>
+                <search base="transitions_base">
+                    <query>
+                        | sort - _time
+                        | head 100
+                        | eval transition = coalesce(previous_status,"NEW") . " → " . status
+                        | table _time, entity_type, entity_key, transition, asset_criticality, current_gap, current_latency, tracking_mode
+                        | rename
+                            entity_type as "type",
+                            entity_key as "entity",
+                            tracking_mode as "mode",
+                            current_gap as "gap (s)",
+                            current_latency as "latency (s)"
+                    </query>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">50</option>
+                <format type="color" field="transition">
+                    <colorPalette type="map">{"OK → DOWN":#dc4e41,"OK → CRITICAL":#9b1d1d,"OK → LATE":#f8be34,"DOWN → OK":#53a051,"CRITICAL → OK":#53a051,"LATE → OK":#53a051,"NEW → OK":#53a051}</colorPalette>
+                </format>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Estimated dwell time per status (current window)</title>
+            <html>
+                <p>For each entity, we pair consecutive transitions and sum the wall-clock time spent in the originating status. Time before the first transition in the window and after the last are bounded by the query range.</p>
+            </html>
+            <table>
+                <search base="transitions_base">
+                    <query>
+                        | sort 0 entity_key, _time
+                        | streamstats current=false last(_time) as prev_time, last(status) as prev_status by entity_key
+                        | eval window_start = relative_time(now(), "$time_tok.earliest$")
+                        | eval dwell_start  = coalesce(prev_time, window_start)
+                        | eval dwell_status = coalesce(prev_status, coalesce(previous_status,"NEW"))
+                        | eval dwell_seconds = _time - dwell_start
+                        | where dwell_seconds &gt; 0
+                        | stats sum(dwell_seconds) as seconds by entity_key, dwell_status
+                        | eval dwell = case(seconds&lt;60, round(seconds,0)." s", seconds&lt;3600, round(seconds/60,1)." m", seconds&lt;86400, round(seconds/3600,1)." h", 1=1, round(seconds/86400,1)." d")
+                        | eval pair = dwell_status . " (" . dwell . ")"
+                        | stats list(pair) as "dwell by status" by entity_key
+                        | rename entity_key as entity
+                    </query>
+                </search>
+                <option name="drilldown">none</option>
+                <option name="count">30</option>
+            </table>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Currently outstanding (live)</title>
+            <table>
+                <search>
+                    <query>
+                        `carbide_all_status`
+                        | where status="DOWN" OR status="CRITICAL" OR status="LATE"
+                        | `carbide_humanize_duration(current_gap)`
+                        | `carbide_humanize_duration(current_latency)`
+                        | sort - current_gap
+                        | table entity_type entity_key tracking_mode status current_gap_h current_latency_h
+                        | rename
+                            entity_type as "type",
+                            entity_key as "entity",
+                            tracking_mode as "mode",
+                            current_gap_h as "gap",
+                            current_latency_h as "latency"
+                    </query>
+                    <earliest>0</earliest>
+                    <latest></latest>
+                </search>
+                <option name="drilldown">cell</option>
+                <option name="count">30</option>
+                <format type="color" field="status">
+                    <colorPalette type="map">{"OK":#53a051,"LATE":#f8be34,"DOWN":#dc4e41,"CRITICAL":#9b1d1d,"MAINT":#4ea1f2,"OFF_HOURS":#6c63ff,"NEW":#888888}</colorPalette>
+                </format>
+            </table>
+        </panel>
+    </row>
+</form>
