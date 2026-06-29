@@ -116,12 +116,24 @@
                         | append [
                             | makeresults
                             | append [
-                                | `carbide_entity_filter("hosts")` index=*
-                                | head 1
-                                | stats count as rows
+                                | tstats count as rows where `carbide_entity_filter("hosts")` earliest=-1h@h
                               ]
                             | stats max(rows) as rows
                             | eval check="carbide_entity_filter(\"hosts\") macro returns a valid clause"
+                            | eval status = if(isnotnull(rows), "ok", "fail")
+                          ]
+                        | append [
+                            | makeresults
+                            | append [ | inputlookup carbide_holidays_lookup | stats count as rows ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_holidays collection reachable"
+                            | eval status = if(isnotnull(rows), "ok", "fail")
+                          ]
+                        | append [
+                            | makeresults
+                            | append [ | inputlookup carbide_assets_lookup | stats count as rows ]
+                            | stats max(rows) as rows
+                            | eval check="carbide_assets collection reachable"
                             | eval status = if(isnotnull(rows), "ok", "fail")
                           ]
                         | where isnotnull(check)
@@ -197,21 +209,21 @@
                         | eval segments    = split(uri_path, "/")
                         | eval last_seg    = mvindex(segments, -1)
                         | eval prev_seg    = mvindex(segments, -2)
-                        | eval is_root_post = (method="POST" AND prev_seg="data")
-                        | eval is_batch     = (last_seg="batch_save")
+                        | eval is_root_post = if(method="POST" AND prev_seg="data", 1, 0)
+                        | eval is_batch     = if(last_seg="batch_save", 1, 0)
                         | eval action     = case(
                             method="DELETE",                                     "delete",
-                            is_batch,                                            "bulk_save",
-                            is_root_post,                                        "create",
+                            is_batch=1,                                          "bulk_save",
+                            is_root_post=1,                                      "create",
                             method="POST",                                       "update",
                             1=1,                                                 method)
                         | eval collection = case(
-                            is_batch,     mvindex(segments, -3),
-                            is_root_post, last_seg,
-                            1=1,          prev_seg)
+                            is_batch=1,     mvindex(segments, -3),
+                            is_root_post=1, last_seg,
+                            1=1,            prev_seg)
                         | eval kv_key     = case(
-                            is_batch OR is_root_post, "-",
-                            1=1,                       last_seg)
+                            is_batch=1 OR is_root_post=1, "-",
+                            1=1,                           last_seg)
                         | sort - _time
                         | head 200
                         | table _time, user, action, collection, kv_key, status, uri_path
