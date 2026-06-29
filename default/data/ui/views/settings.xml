@@ -1,4 +1,4 @@
-<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
+<form version="1.1" script="carbide_inline_edit.js" stylesheet="carbide.css">
     <label>Settings</label>
     <description>Bootstrap defaults applied to NEW entities at discovery time, app health checks, and the audit log of inline edits. Existing entities keep their per-row thresholds until you edit them.</description>
 

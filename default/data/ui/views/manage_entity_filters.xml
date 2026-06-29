@@ -1,4 +1,4 @@
-<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
+<form version="1.1" script="carbide_inline_edit.js" stylesheet="carbide.css">
     <label>Entity Filters</label>
     <description>Per-tracking-type include/exclude rules on any of (index, host, source, sourcetype). Use this to keep noisy axes out of monitoring -- e.g. EXCLUDE the per-hour rotating `source` of syslog devices while still tracking the meaningful `source` of Windows event-log forwarders. Wildcards (`*` and `?`) are supported in patterns. Rules apply to discovery AND live status calculation.</description>
 
