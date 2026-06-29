@@ -3,6 +3,101 @@
  * Loaded via the `stylesheet="carbide.css"` attribute on each form.
  */
 
+/* ----------------------------------------------------------- force dark mode
+ *
+ * The per-form `theme="dark"` attribute is unreliable across Splunk versions
+ * (especially on classic SimpleXML in Splunk 9.x), so we belt-and-suspender
+ * the result with these overrides. The CSS is only loaded when a user opens
+ * a Carbide dashboard, so the !importants are scoped to this app naturally.
+ */
+
+.dashboard-body,
+.dashboard-row,
+.dashboard-cell,
+.dashboard-element {
+    background-color: transparent !important;
+}
+
+.dashboard-panel,
+.dashboard-panel .panel-body,
+.panel-element-row {
+    background-color: #1b1c1d !important;
+    color: #cfd8dc !important;
+    border-color: #2a3540 !important;
+}
+
+.dashboard-panel .panel-head,
+.dashboard-panel h2.panel-title,
+.dashboard-panel .panel-title,
+.dashboard-panel-title {
+    color: #e8eaed !important;
+    background-color: transparent !important;
+}
+
+.dashboard-panel .panel-body p,
+.dashboard-panel .panel-body li,
+.dashboard-panel .panel-body label,
+.dashboard-panel .panel-body span,
+.dashboard-panel .panel-body div {
+    color: inherit;
+}
+
+.dashboard-panel .panel-body a {
+    color: #4ea1f2 !important;
+}
+
+.dashboard-panel .panel-body code {
+    background-color: rgba(255,255,255,0.08) !important;
+    color: #e8eaed !important;
+    padding: 1px 6px;
+    border-radius: 2px;
+}
+
+.dashboard-panel .panel-body hr {
+    border-color: #2a3540 !important;
+}
+
+/* Form chrome (the token inputs at the top of every dashboard). Splunk's
+   own dark-mode CSS handles these on most installs but not all. */
+.dashboard-body .fieldset,
+.dashboard-body .form-inline,
+.dashboard-body .input,
+.dashboard-body .input-dropdown,
+.dashboard-body .input-text {
+    background-color: transparent !important;
+    color: #e8eaed !important;
+}
+
+/* Table chrome - Splunk's default light-theme table cells leak in some
+   versions. Force the table surfaces dark too. */
+.dashboard-panel table.splTable,
+.dashboard-panel table.table,
+.dashboard-panel .results-pivot-table {
+    background-color: #1b1c1d !important;
+    color: #cfd8dc !important;
+}
+.dashboard-panel table thead th {
+    background-color: #2a3540 !important;
+    color: #e8eaed !important;
+    border-color: #3a3b3c !important;
+}
+.dashboard-panel table tbody tr {
+    background-color: #1b1c1d !important;
+}
+.dashboard-panel table tbody tr:nth-child(even) {
+    background-color: #20262b !important;
+}
+.dashboard-panel table tbody td {
+    border-color: #2a3540 !important;
+    color: #cfd8dc !important;
+}
+
+/* The Splunk app body background (outside panels). */
+.section-body,
+.shared-htmldashboard {
+    background-color: #0c1014 !important;
+}
+
 /* ------------------------------------------------------------------ general */
 
 .dashboard-body .dashboard-row .dashboard-panel h2.panel-title {
