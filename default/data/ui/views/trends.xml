@@ -1,4 +1,4 @@
-<form version="1.1" stylesheet="carbide.css">
+<form version="1.1" theme="dark" stylesheet="carbide.css">
     <label>Trends</label>
     <description>Historical view of status TRANSITIONS. Snapshots only log when an entity changes state (or is observed for the first time), so the index records changes -- not steady state. Use the Overview / Hosts / Sources tabs for the live "currently OK vs not" picture.</description>
 

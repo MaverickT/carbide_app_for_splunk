@@ -1,4 +1,4 @@
-<form version="1.1" script="carbide_inline_edit.js" stylesheet="carbide.css" hideEdit="false">
+<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css" hideEdit="false">
     <label>Manage entities</label>
     <description>Tracked hosts and sources in one place. Toggle between Hosts and Sources at the top. Click any blue cell to edit; quick-action buttons act on every row matching the current filter.</description>
 
@@ -377,7 +377,7 @@
         <panel>
             <title>Delete entity</title>
             <html>
-                <p style="color:#cfd8dc;font-size:13px;">Paste an entity's <code>_key</code> (visible when "Show details" is on) to remove it from Carbide's tracking. Data ingestion is unaffected.</p>
+                <p style="color:#b8bec5;font-size:13px;">Paste an entity's <code>_key</code> (visible when "Show details" is on) to remove it from Carbide's tracking. Data ingestion is unaffected.</p>
                 <div class="carbide-delete-row" depends="$is_host$">
                     <input type="text" id="carbide_delete_key" placeholder="_key to remove"
                            data-carbide-collection="carbide_tracked_hosts"

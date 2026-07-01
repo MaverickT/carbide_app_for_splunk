@@ -1,4 +1,4 @@
-<form version="1.1" script="carbide_inline_edit.js" stylesheet="carbide.css">
+<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
     <label>Manage holidays</label>
     <description>Global holiday calendar consulted whenever an entity is on the `weekdays` or `business_hours` schedule. On a holiday, the entity reports `🌙 Off-hours` and alerts/heartbeats skip it. Two date formats are supported: fixed dates (`YYYY-MM-DD`, `recurring=0`) match only that specific year; recurring annual holidays use `MM-DD` with `recurring=1` and apply every year.</description>
 
@@ -78,7 +78,7 @@
                             data-carbide-collection="carbide_holidays"
                             data-carbide-target="carbide_holidays_table">Add holiday</button>
                 </div>
-                <p style="color:#90a4ae;font-size:12px;margin-top:6px;">
+                <p style="color:#7a8590;font-size:12px;margin-top:6px;">
                     Tip: enter <code>02-29</code> with recurring = Yes to flag leap-day in leap years only; entering
                     <code>2028-02-29</code> with recurring = No applies in 2028 only.
                 </p>
@@ -90,7 +90,7 @@
         <panel>
             <title>Delete holiday</title>
             <html>
-                <p style="color:#cfd8dc;font-size:13px;">Paste a holiday row's <code>_key</code> to remove it.</p>
+                <p style="color:#b8bec5;font-size:13px;">Paste a holiday row's <code>_key</code> to remove it.</p>
                 <div class="carbide-delete-row">
                     <input type="text" id="carbide_delete_key_holidays" placeholder="_key to remove"
                            data-carbide-collection="carbide_holidays"

@@ -5,15 +5,16 @@
 
 /* ------------------------------------------------------------------ general
  *
- * No global `theme="dark"` override here. On Splunk 10 the dashboards
- * inherit theme from the user-level UI preference; trying to force dark
- * via broad CSS overrides ends up fighting the React-based chrome instead
- * of helping. The CSS below only styles Carbide-specific custom elements
- * (toolbars, quick-action rows, empty-state cards, inline-edit cells,
- * forms) using color values that read correctly on Splunk's dark theme
- * and remain legible on light. If a user runs the app on Splunk's light
- * theme, our custom panels will look a bit dark-on-light but stay
- * functional.
+ * Every form carries `theme="dark"`. This CSS is the Carbide-specific
+ * custom-element styling (toolbars, quick-action rows, empty-state cards,
+ * inline-edit cells, forms). Typography uses SOFT whites/grays instead of
+ * pure #fff/#fafafa to reduce halation against dark backgrounds:
+ *
+ *   --carbide-text-strong: #d8dee4  (headings, strong emphasis)
+ *   --carbide-text-body:   #b8bec5  (paragraphs, main text)
+ *   --carbide-text-muted:  #8a949e  (labels, secondary text, hints)
+ *   --carbide-link:        #5aa8f5  (softer blue, easier on the eye)
+ *   --carbide-input-text:  #c9ced4  (form controls)
  */
 
 .dashboard-body .dashboard-row .dashboard-panel h2.panel-title {
@@ -27,8 +28,8 @@
     border-radius: 3px;
     font-size: 13px;
 }
-.carbide-toolbar-info { color: #cfd8dc; }
-.carbide-toolbar strong { color: #ffffff; }
+.carbide-toolbar-info { color: #b8bec5; }
+.carbide-toolbar strong { color: #d8dee4; }
 
 .carbide-form {
     display: flex;
@@ -43,7 +44,7 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #b0bec5;
+    color: #8a949e;
 }
 .carbide-form input,
 .carbide-form select {
@@ -51,7 +52,7 @@
     min-width: 180px;
     padding: 5px 8px;
     background: #1b1c1d;
-    color: #fafafa;
+    color: #c9ced4;
     border: 1px solid #3a3b3c;
     border-radius: 3px;
 }
@@ -67,7 +68,7 @@
     flex: 1;
     padding: 6px 10px;
     background: #1b1c1d;
-    color: #fafafa;
+    color: #c9ced4;
     border: 1px solid #3a3b3c;
     border-radius: 3px;
     font-family: monospace;
@@ -129,7 +130,7 @@ td.carbide-saving {
     border-radius: 3px;
     font-size: 13px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
-    color: #ffffff;
+    color: #eef1f4;
 }
 .carbide-toast-ok  { background: #2c7a3d; }
 .carbide-toast-err { background: #b6332b; }
@@ -151,14 +152,14 @@ td.carbide-saving {
     border-left: 3px solid #4ea1f2;
     border-radius: 3px;
 }
-.carbide-bulk strong { color: #ffffff; font-size: 12px; align-self: center; }
+.carbide-bulk strong { color: #d8dee4; font-size: 12px; align-self: center; }
 .carbide-bulk label {
     display: flex;
     flex-direction: column;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #b0bec5;
+    color: #8a949e;
 }
 .carbide-bulk input,
 .carbide-bulk select {
@@ -166,14 +167,14 @@ td.carbide-saving {
     min-width: 160px;
     padding: 5px 8px;
     background: #1b1c1d;
-    color: #fafafa;
+    color: #c9ced4;
     border: 1px solid #3a3b3c;
     border-radius: 3px;
 }
 .carbide-bulk-count {
     margin-left: 8px;
     font-size: 12px;
-    color: #b0bec5;
+    color: #8a949e;
     align-self: center;
 }
 
@@ -185,9 +186,9 @@ td.carbide-saving {
     border-left: 3px solid #f8be34;
     border-radius: 3px;
 }
-.carbide-empty-state h3 { margin: 0 0 8px 0; color: #ffffff; }
-.carbide-empty-state ol { margin: 10px 0 0 22px; color: #cfd8dc; }
-.carbide-empty-state code { background: rgba(255,255,255,0.08); padding: 1px 6px; border-radius: 2px; }
+.carbide-empty-state h3 { margin: 0 0 8px 0; color: #d8dee4; }
+.carbide-empty-state ol { margin: 10px 0 0 22px; color: #b8bec5; }
+.carbide-empty-state code { background: rgba(255,255,255,0.06); color: #d8dee4; padding: 1px 6px; border-radius: 2px; }
 
 /* ----------------------------------------------------------- apply-all row */
 
@@ -213,7 +214,7 @@ td.carbide-saving {
     align-items: center;
 }
 .carbide-quick strong {
-    color: #ffffff;
+    color: #d8dee4;
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -223,7 +224,7 @@ td.carbide-saving {
     border-radius: 3px;
     border: 1px solid #3a3b3c;
     background: #2c3034;
-    color: #e8eaed;
+    color: #c9ced4;
     cursor: pointer;
     font-size: 12px;
     white-space: nowrap;
@@ -270,9 +271,9 @@ td.carbide-saving {
     margin-right: 8px;
     font-size: 12px;
 }
-.carbide-card h4 { margin: 0 0 8px 0; color: #ffffff; display: flex; align-items: center; }
-.carbide-card p  { color: #cfd8dc; font-size: 13px; line-height: 1.5; margin: 0 0 8px 0; }
-.carbide-card a  { color: #4ea1f2; text-decoration: none; font-weight: 500; }
+.carbide-card h4 { margin: 0 0 8px 0; color: #d8dee4; display: flex; align-items: center; }
+.carbide-card p  { color: #b8bec5; font-size: 13px; line-height: 1.5; margin: 0 0 8px 0; }
+.carbide-card a  { color: #5aa8f5; text-decoration: none; font-weight: 500; }
 .carbide-card a:hover { text-decoration: underline; }
 
 /* ----------------------------------------------------------- recommended defaults */
@@ -288,5 +289,5 @@ td.carbide-saving {
     align-items: center;
     gap: 12px;
 }
-.carbide-defaults-cta p { margin: 0; color: #cfd8dc; font-size: 13px; }
+.carbide-defaults-cta p { margin: 0; color: #b8bec5; font-size: 13px; }
 .carbide-defaults-cta button { white-space: nowrap; }

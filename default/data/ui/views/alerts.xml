@@ -1,4 +1,4 @@
-<form version="1.1" stylesheet="carbide.css">
+<form version="1.1" theme="dark" stylesheet="carbide.css">
     <label>Alerts</label>
     <description>Recent fires of Carbide alert searches. Configure actions (email, webhook, PagerDuty, ...) on the individual saved searches under Settings &gt; Searches, reports, and alerts.</description>
 

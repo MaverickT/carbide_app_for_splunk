@@ -1,4 +1,4 @@
-<form version="1.1" script="carbide_inline_edit.js" stylesheet="carbide.css">
+<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
     <label>Manage assets</label>
     <description>Per-host metadata that Carbide joins to the live status macro so alerts and dashboards carry asset context (criticality, owner, business unit). Works without ES; populate manually below, or enable the ES asset_lookup_by_str sync saved search if you have ES. Empty collection = no enrichment, no errors.</description>
 
@@ -95,14 +95,14 @@
         <panel>
             <title>Sync from Splunk Enterprise Security (optional)</title>
             <html>
-                <p style="color:#cfd8dc;">
+                <p style="color:#b8bec5;">
                   If ES is installed and <code>asset_lookup_by_str</code> is populated,
                   enable the <em>Carbide - Sync ES asset_lookup_by_str to carbide_assets</em>
                   saved search in Settings &#8250; Searches. It runs nightly at 03:17 and
                   upserts the ES asset list into this collection so the Carbide host status
                   macro can enrich every live status with criticality / owner / business unit.
                 </p>
-                <p style="color:#90a4ae;font-size:12px;">
+                <p style="color:#7a8590;font-size:12px;">
                   Without ES, populate this table manually with the rows that matter to you.
                   Carbide treats the lookup as best-effort &#8212; an empty table is a valid state.
                 </p>
@@ -114,7 +114,7 @@
         <panel>
             <title>Delete asset</title>
             <html>
-                <p style="color:#cfd8dc;font-size:13px;">Paste an asset row's <code>_key</code> to remove it.</p>
+                <p style="color:#b8bec5;font-size:13px;">Paste an asset row's <code>_key</code> to remove it.</p>
                 <div class="carbide-delete-row">
                     <input type="text" id="carbide_delete_key_assets" placeholder="_key to remove"
                            data-carbide-collection="carbide_assets"

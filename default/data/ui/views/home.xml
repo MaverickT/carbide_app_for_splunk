@@ -1,4 +1,4 @@
-<form version="1.1" stylesheet="carbide.css">
+<form version="1.1" theme="dark" stylesheet="carbide.css">
     <label>Home</label>
     <description>Health at a glance for everything Carbide is watching.</description>
 
@@ -26,8 +26,8 @@
     <row depends="$show_get_started$">
         <panel>
             <html>
-                <h2 style="color:#fff;margin:6px 0 4px 0;">Welcome to Carbide</h2>
-                <p style="color:#cfd8dc;margin:0 0 14px 0;">
+                <h2 style="color:#d8dee4;margin:6px 0 4px 0;">Welcome to Carbide</h2>
+                <p style="color:#b8bec5;margin:0 0 14px 0;">
                   Three quick steps to start watching your data sources for outages.
                   No PhD required.
                 </p>
@@ -68,7 +68,7 @@
                         </p>
                     </div>
                 </div>
-                <p style="color:#90a4ae;font-size:12px;margin-top:14px;">
+                <p style="color:#7a8590;font-size:12px;margin-top:14px;">
                   Need recommended threshold values?
                   <a href="settings">Settings &#8250; Use recommended defaults</a>
                   applies sensible bootstrap values for max gap, max latency, schedule.
@@ -233,11 +233,11 @@
     <row depends="$show_dashboard$">
         <panel>
             <html>
-                <p style="color:#90a4ae;font-size:13px;margin:0;">
+                <p style="color:#7a8590;font-size:13px;margin:0;">
                   Looking for more?
-                  <a href="manage_entities" style="color:#4ea1f2;">Manage entities</a> ·
-                  <a href="manage_suggestions" style="color:#4ea1f2;">Threshold suggestions</a> ·
-                  <a href="trends" style="color:#4ea1f2;">History</a>
+                  <a href="manage_entities" style="color:#5aa8f5;">Manage entities</a> ·
+                  <a href="manage_suggestions" style="color:#5aa8f5;">Threshold suggestions</a> ·
+                  <a href="trends" style="color:#5aa8f5;">History</a>
                 </p>
             </html>
         </panel>
