@@ -725,7 +725,11 @@ require([
         { setting_key: 'default_monitoring_schedule',  setting_value: '247'    }
     ];
 
-    $('#carbide_use_recommended_defaults').on('click', function () {
+    // The button was removed from settings.xml because discovery no longer
+    // reads carbide_settings — defaults live in carbide_default_* macros
+    // now. The handler stays as a no-op guard in case any local override
+    // still references it.
+    $('#carbide_use_recommended_defaults_disabled').on('click', function () {
         var $btn = $(this);
         var collection = $btn.data('carbide-collection') || 'carbide_settings';
         var targetId   = $btn.data('carbide-target');

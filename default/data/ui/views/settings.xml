@@ -4,21 +4,7 @@
 
     <row>
         <panel>
-            <html>
-                <div class="carbide-defaults-cta">
-                    <p>Not sure what numbers to put here? Click <strong>Use recommended defaults</strong>: <code>default_monitored=0</code>, <code>default_max_latency_seconds=600</code>, <code>default_max_gap_seconds=3600</code>, <code>default_monitoring_schedule=247</code>. Existing rows are left alone; only newly discovered entities pick these up.</p>
-                    <button id="carbide_use_recommended_defaults"
-                            class="btn btn-primary"
-                            data-carbide-collection="carbide_settings"
-                            data-carbide-target="carbide_settings_table">Use recommended defaults</button>
-                </div>
-            </html>
-        </panel>
-    </row>
-
-    <row>
-        <panel>
-            <title>Current settings</title>
+            <title>Current settings (legacy KV, not read by discovery)</title>
             <table id="carbide_settings_table"
                    data-carbide-collection="carbide_settings"
                    data-carbide-editable="setting_value">
@@ -39,27 +25,21 @@
 
     <row>
         <panel>
-            <title>Add / overwrite setting</title>
+            <title>How to change defaults</title>
             <html>
-                <div class="carbide-form">
-                    <label>Key
-                        <select id="carbide_new_setting_key">
-                            <option value="default_monitored">default_monitored (0 or 1)</option>
-                            <option value="default_max_latency_seconds">default_max_latency_seconds</option>
-                            <option value="default_max_gap_seconds">default_max_gap_seconds</option>
-                            <option value="default_monitoring_schedule">default_monitoring_schedule (247|weekdays|business_hours)</option>
-                            <option value="business_hours_start">business_hours_start (HHMM, e.g. 800)</option>
-                            <option value="business_hours_end">business_hours_end (HHMM, e.g. 1600)</option>
-                        </select>
-                    </label>
-                    <label>Value <input type="text" id="carbide_new_setting_value" placeholder="e.g. 600" /></label>
-                    <button id="carbide_save_setting"
-                            class="btn btn-primary"
-                            data-carbide-collection="carbide_settings"
-                            data-carbide-target="carbide_settings_table">Save</button>
+                <div class="carbide-panel-content">
+                    <p>Discovery + status defaults are now stored as <strong>Splunk search macros</strong>, not KV-store settings. Splunk 10.4's parser rejects the subsearch-in-eval pattern this dashboard used to rely on. Edit the values directly via:</p>
+                    <p style="margin-left:14px;"><strong>Settings &#8250; Advanced search &#8250; Search macros</strong> — filter for <code>carbide_default_</code>.</p>
+                    <ul style="margin:6px 0 0 22px;">
+                        <li><code>carbide_default_monitored</code> — <em>0</em> (off) or <em>1</em> (on) for newly discovered entities</li>
+                        <li><code>carbide_default_max_latency</code> — <em>600</em> seconds</li>
+                        <li><code>carbide_default_max_gap</code> — <em>3600</em> seconds</li>
+                        <li><code>carbide_default_monitoring_schedule</code> — <em>"247"</em>, <em>"weekdays"</em>, or <em>"business_hours"</em> (quotes required)</li>
+                        <li><code>carbide_default_business_hours_start</code> — HHMM number, e.g. <em>800</em></li>
+                        <li><code>carbide_default_business_hours_end</code> — HHMM number, e.g. <em>1600</em></li>
+                    </ul>
+                    <p>The <code>carbide_settings</code> KV collection still exists and its contents show below for reference, but discovery no longer reads it. The rows are harmless — leftover from the old setting-lookup mechanism.</p>
                 </div>
-                <hr/>
-                <p>Settings stored here are read by discovery searches at run time via the <code>carbide_setting_num</code> / <code>carbide_setting_str</code> macros and override the corresponding <code>carbide_default_*</code> macros. Changes apply to newly discovered entities only; existing rows keep their per-row thresholds.</p>
             </html>
         </panel>
     </row>
