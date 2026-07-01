@@ -52,9 +52,7 @@
                         | sort + tracking_type field_name mode pattern
                         | table _key, tracking_type, field_name, mode, pattern, notes
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">none</option>
                 <option name="count">100</option>
             </table>

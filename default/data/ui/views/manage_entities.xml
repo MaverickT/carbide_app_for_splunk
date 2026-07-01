@@ -210,9 +210,7 @@
                             first_seen_h as "first seen",
                             last_updated_h as "last updated"
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">none</option>
                 <option name="count">50</option>
                 <option name="wrap">false</option>
@@ -296,9 +294,7 @@
                             first_seen_h as "first seen",
                             last_updated_h as "last updated"
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">none</option>
                 <option name="count">50</option>
                 <option name="wrap">false</option>

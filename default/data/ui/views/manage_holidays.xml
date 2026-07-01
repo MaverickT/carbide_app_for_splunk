@@ -51,9 +51,7 @@
                         | sort + date
                         | table _key, date, name, recurring, notes
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">none</option>
                 <option name="count">200</option>
             </table>

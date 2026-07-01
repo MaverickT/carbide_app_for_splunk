@@ -20,9 +20,7 @@
             | stats sum(monitored) as monitored_count, count as total_count
             | eval monitored_count = coalesce(monitored_count, 0)
         </query>
-        <earliest>0</earliest>
-        <latest></latest>
-    </search>
+                    </search>
 
     <row depends="$show_get_started$">
         <panel>
@@ -98,8 +96,7 @@
             <single>
                 <search>
                     <query>`carbide_cached_status` | search status="OK" | stats count</query>
-                    <earliest>0</earliest><latest></latest>
-                </search>
+                    </search>
                 <option name="underLabel">OK</option>
                 <option name="colorBy">value</option>
                 <option name="rangeColors">["0x53a051","0x53a051"]</option>
@@ -111,8 +108,7 @@
             <single>
                 <search>
                     <query>`carbide_cached_status` | search status="LATE" | stats count</query>
-                    <earliest>0</earliest><latest></latest>
-                </search>
+                    </search>
                 <option name="underLabel">⚠ LATE</option>
                 <option name="colorBy">value</option>
                 <option name="colorMode">block</option>
@@ -130,8 +126,7 @@
             <single>
                 <search>
                     <query>`carbide_cached_status` | search status="DOWN" OR status="CRITICAL" | stats count</query>
-                    <earliest>0</earliest><latest></latest>
-                </search>
+                    </search>
                 <option name="underLabel">✗ DOWN / CRITICAL</option>
                 <option name="colorBy">value</option>
                 <option name="colorMode">block</option>
@@ -149,8 +144,7 @@
             <single>
                 <search>
                     <query>`carbide_cached_status` | search status="MAINT" | stats count</query>
-                    <earliest>0</earliest><latest></latest>
-                </search>
+                    </search>
                 <option name="underLabel">🔧 in maintenance</option>
                 <option name="colorBy">value</option>
                 <option name="rangeColors">["0x4ea1f2","0x4ea1f2"]</option>
@@ -182,9 +176,7 @@
                             current_latency_h as "ingest delay",
                             tags as "tags"
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">cell</option>
                 <option name="rowNumbers">false</option>
                 <option name="count">25</option>
@@ -219,9 +211,7 @@
                             tracking_mode as "mode",
                             first_seen_h as "first seen"
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">cell</option>
                 <option name="count">15</option>
                 <drilldown>

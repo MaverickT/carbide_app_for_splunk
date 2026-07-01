@@ -14,9 +14,7 @@
                         | sort + setting_key
                         | table _key, setting_key, setting_value
                     </query>
-                    <earliest>0</earliest>
-                    <latest></latest>
-                </search>
+                    </search>
                 <option name="drilldown">none</option>
                 <option name="count">100</option>
             </table>
