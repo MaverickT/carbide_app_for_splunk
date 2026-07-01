@@ -50,72 +50,25 @@
             <table>
                 <search>
                     <query>
-                        | makeresults
-                        | eval check="carbide_settings collection reachable"
-                        | append [ | inputlookup carbide_settings_lookup | stats count as rows | eval check="carbide_settings collection reachable" ]
-                        | stats max(rows) as rows by check
-                        | eval status = if(isnotnull(rows), "ok", "fail")
-                        | append [
-                            | makeresults
-                            | append [ | inputlookup carbide_tracked_hosts_lookup | stats count as rows ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_tracked_hosts collection reachable"
-                            | eval status = if(isnotnull(rows), "ok", "fail")
-                          ]
-                        | append [
-                            | makeresults
-                            | append [ | inputlookup carbide_tracked_sources_lookup | stats count as rows ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_tracked_sources collection reachable"
-                            | eval status = if(isnotnull(rows), "ok", "fail")
-                          ]
-                        | append [
-                            | makeresults
-                            | append [ | inputlookup carbide_entity_filters_lookup | stats count as rows ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_entity_filters collection reachable (seeded if &gt; 0)"
-                            | eval status = if(isnotnull(rows) AND rows&gt;0, "ok", if(isnotnull(rows), "warn (empty)", "fail"))
-                          ]
-                        | append [
-                            | makeresults
-                            | append [ | inputlookup carbide_entity_filters_seed | stats count as rows ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_entity_filters_seed CSV present"
-                            | eval status = if(isnotnull(rows) AND rows&gt;0, "ok", "fail")
-                          ]
-                        | append [
-                            | makeresults
-                            | append [
-                                | tstats count where index=`carbide_index` earliest=-7d@d
-                              ]
-                            | stats max(count) as rows
-                            | eval check="dedicated index `carbide_index` reachable + recent snapshots"
-                            | eval status = case(rows&gt;0, "ok", isnotnull(rows), "warn (no events in 7d)", 1=1, "fail")
-                          ]
-                        | append [
-                            | makeresults
-                            | append [
-                                | tstats count as rows where `carbide_entity_filter("hosts")` earliest=-1h@h
-                              ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_entity_filter(\"hosts\") macro returns a valid clause"
-                            | eval status = if(isnotnull(rows), "ok", "fail")
-                          ]
-                        | append [
-                            | makeresults
-                            | append [ | inputlookup carbide_holidays_lookup | stats count as rows ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_holidays collection reachable"
-                            | eval status = if(isnotnull(rows), "ok", "fail")
-                          ]
-                        | append [
-                            | makeresults
-                            | append [ | inputlookup carbide_assets_lookup | stats count as rows ]
-                            | stats max(rows) as rows
-                            | eval check="carbide_assets collection reachable"
-                            | eval status = if(isnotnull(rows), "ok", "fail")
-                          ]
-                        | where isnotnull(check)
+                        | inputlookup carbide_settings_lookup       | stats count as rows | eval check="carbide_settings collection reachable"
+                        | append [ | inputlookup carbide_tracked_hosts_lookup   | stats count as rows | eval check="carbide_tracked_hosts collection reachable" ]
+                        | append [ | inputlookup carbide_tracked_sources_lookup | stats count as rows | eval check="carbide_tracked_sources collection reachable" ]
+                        | append [ | inputlookup carbide_entity_filters_lookup  | stats count as rows | eval check="carbide_entity_filters collection reachable (seeded if &gt; 0)" ]
+                        | append [ | inputlookup carbide_entity_filters_seed    | stats count as rows | eval check="carbide_entity_filters_seed CSV present" ]
+                        | append [ | inputlookup carbide_holidays_lookup        | stats count as rows | eval check="carbide_holidays collection reachable" ]
+                        | append [ | inputlookup carbide_assets_lookup          | stats count as rows | eval check="carbide_assets collection reachable" ]
+                        | append [ | tstats count as rows where index=`carbide_index` earliest=-7d@d | eval check="dedicated index `carbide_index` reachable + recent snapshots" ]
+                        | append [ | tstats count as rows where `carbide_entity_filter("hosts")` earliest=-1h@h | eval check="carbide_entity_filter(\"hosts\") macro returns a valid clause" ]
+                        | eval status = case(
+                              check="carbide_entity_filters collection reachable (seeded if &gt; 0)" AND rows&gt;0, "ok",
+                              check="carbide_entity_filters collection reachable (seeded if &gt; 0)",           "warn (empty)",
+                              check="carbide_entity_filters_seed CSV present" AND rows&gt;0,                     "ok",
+                              check="carbide_entity_filters_seed CSV present",                                  "fail",
+                              check="dedicated index `carbide_index` reachable + recent snapshots" AND rows&gt;0, "ok",
+                              check="dedicated index `carbide_index` reachable + recent snapshots",              "warn (no events in 7d)",
+                              isnotnull(rows), "ok",
+                              1=1,             "fail"
+                          )
                         | table check, status, rows
                     </query>
                 </search>
