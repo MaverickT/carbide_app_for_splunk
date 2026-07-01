@@ -145,12 +145,15 @@ Configure the global business-hours window in *Advanced > Settings*:
 
 - `business_hours_start` — HHMM as a number, default `800`.
 - `business_hours_end` — HHMM as a number, default `1600`.
-- `business_timezone` — IANA name (default `"UTC"`; set to your local
-  zone like `"Europe/Ljubljana"`). All weekend / hour / holiday checks
-  use this timezone, regardless of which user dispatches the search or
-  which SH they're connected to.
 - `default_monitoring_schedule` — the preset newly discovered entities
   receive (default `"247"`).
+
+**Timezone**: Splunk's `strftime` doesn't accept a timezone argument, so
+all weekend / business-hours / holiday checks run in the dispatching
+user's tz preference (which defaults to the search head's server tz for
+scheduled searches). If you need a specific tz, set it globally via
+`server.conf` `[general]` on the search head — there is no per-app tz
+override available in Splunk.
 
 Manage the global holiday list at **Manage holidays**. Two date formats
 are supported in the same `date` column:

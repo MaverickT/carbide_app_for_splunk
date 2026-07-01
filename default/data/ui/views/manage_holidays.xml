@@ -21,9 +21,10 @@
             <html>
                 <div class="carbide-toolbar">
                     <div class="carbide-toolbar-info">
-                        <strong>Reminder:</strong> the holiday list is global. The business-hours timezone (set via the
-                        <code>business_timezone</code> setting in Settings) determines which calendar day is "today" for
-                        the holiday check. Empty calendar = no holidays = the schedule only respects weekends + clock hours.
+                        <strong>Reminder:</strong> the holiday list is global. The search head's local timezone determines
+                        which calendar day is "today" for the holiday check (Splunk's <code>strftime</code> has no
+                        timezone argument — it uses the dispatching user's tz preference; for scheduled searches this
+                        defaults to the server tz). Empty calendar = no holidays = the schedule only respects weekends + clock hours.
                     </div>
                 </div>
             </html>
