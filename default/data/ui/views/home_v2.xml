@@ -74,7 +74,7 @@
         "ds_watching": {
             "type": "ds.search",
             "options": {
-                "query": "| inputlookup carbide_tracked_hosts_lookup | append [ | inputlookup carbide_tracked_sources_lookup ] | stats sum(monitored) as count | eval count = coalesce(count, 0)",
+                "query": "| union [ | inputlookup carbide_tracked_hosts_lookup ] [ | inputlookup carbide_tracked_sources_lookup ] | stats sum(monitored) as count | eval count = coalesce(count, 0)",
                 "queryParameters": { "earliest": "0", "latest": "now" }
             }
         },
@@ -116,7 +116,7 @@
         "ds_awaiting": {
             "type": "ds.search",
             "options": {
-                "query": "| inputlookup carbide_tracked_hosts_lookup | eval entity_type=\"host\" | append [ | inputlookup carbide_tracked_sources_lookup | eval entity_type=\"source\" ] | where monitored=0 | eval first_seen_h = strftime(first_seen,\"%Y-%m-%d %H:%M:%S\") | sort - first_seen | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h | rename entity_type as \"type\", entity_key as \"entity\", tracking_mode as \"mode\", first_seen_h as \"first seen\"",
+                "query": "| union [ | inputlookup carbide_tracked_hosts_lookup | eval entity_type=\"host\" ] [ | inputlookup carbide_tracked_sources_lookup | eval entity_type=\"source\" ] | where monitored=0 | eval first_seen_h = strftime(first_seen,\"%Y-%m-%d %H:%M:%S\") | sort - first_seen | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h | rename entity_type as \"type\", entity_key as \"entity\", tracking_mode as \"mode\", first_seen_h as \"first seen\"",
                 "queryParameters": { "earliest": "0", "latest": "now" }
             }
         }

@@ -14,8 +14,9 @@
             </condition>
         </progress>
         <query>
-            | inputlookup carbide_tracked_hosts_lookup
-            | append [ | inputlookup carbide_tracked_sources_lookup ]
+            | union
+                [ | inputlookup carbide_tracked_hosts_lookup ]
+                [ | inputlookup carbide_tracked_sources_lookup ]
             | stats sum(monitored) as monitored_count, count as total_count
             | eval monitored_count = coalesce(monitored_count, 0)
         </query>
@@ -205,9 +206,9 @@
             <table>
                 <search>
                     <query>
-                        | inputlookup carbide_tracked_hosts_lookup
-                        | eval entity_type="host"
-                        | append [ | inputlookup carbide_tracked_sources_lookup | eval entity_type="source" ]
+                        | union
+                            [ | inputlookup carbide_tracked_hosts_lookup   | eval entity_type="host" ]
+                            [ | inputlookup carbide_tracked_sources_lookup | eval entity_type="source" ]
                         | where monitored=0
                         | eval first_seen_h = strftime(first_seen,"%Y-%m-%d %H:%M:%S")
                         | sort - first_seen
