@@ -22,8 +22,9 @@
 }
 
 .carbide-toolbar {
-    padding: 8px 12px;
-    background: rgba(10,124,91,0.08);
+    padding: 10px 14px;
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
     border-left: 3px solid #0a7c5b;
     border-radius: 3px;
     font-size: 13px;
@@ -146,9 +147,10 @@ td.carbide-saving {
     flex-wrap: wrap;
     align-items: flex-end;
     gap: 10px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     margin-top: 8px;
-    background: rgba(78,161,242,0.06);
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
     border-left: 3px solid #4ea1f2;
     border-radius: 3px;
 }
@@ -182,7 +184,8 @@ td.carbide-saving {
 
 .carbide-empty-state {
     padding: 18px 22px;
-    background: rgba(248,190,52,0.06);
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
     border-left: 3px solid #f8be34;
     border-radius: 3px;
 }
@@ -206,9 +209,10 @@ td.carbide-saving {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    padding: 10px 12px;
+    padding: 12px 14px;
     margin: 8px 0;
-    background: rgba(83,160,81,0.06);
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
     border-left: 3px solid #53a051;
     border-radius: 3px;
     align-items: center;
@@ -254,7 +258,7 @@ td.carbide-saving {
 }
 .carbide-card {
     padding: 16px 20px;
-    background: rgba(78,161,242,0.05);
+    background: #1b1c1d;
     border: 1px solid #2a3540;
     border-left: 4px solid #4ea1f2;
     border-radius: 4px;
@@ -280,7 +284,8 @@ td.carbide-saving {
 
 .carbide-defaults-cta {
     padding: 14px 18px;
-    background: rgba(83,160,81,0.06);
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
     border-left: 3px solid #53a051;
     border-radius: 3px;
     margin-bottom: 8px;
@@ -291,3 +296,71 @@ td.carbide-saving {
 }
 .carbide-defaults-cta p { margin: 0; color: #b8bec5; font-size: 13px; }
 .carbide-defaults-cta button { white-space: nowrap; }
+
+/* ----------------------------------------------------------- panel-content wrapper
+ *
+ * Wraps loose `<html>` panel content when Splunk's panel body is rendering
+ * light (e.g. Splunk 10.4 with the theme attribute ignored). Guarantees a
+ * dark stage for text that isn't inside a .carbide-toolbar / .carbide-card /
+ * etc.
+ */
+
+.carbide-panel-content {
+    background: #1b1c1d;
+    color: #b8bec5;
+    padding: 16px 20px;
+    border-radius: 3px;
+    border: 1px solid #2a3540;
+}
+.carbide-panel-content h1,
+.carbide-panel-content h2,
+.carbide-panel-content h3,
+.carbide-panel-content h4 { color: #d8dee4; }
+.carbide-panel-content a { color: #5aa8f5; text-decoration: none; }
+.carbide-panel-content a:hover { text-decoration: underline; }
+.carbide-panel-content code {
+    background: rgba(255,255,255,0.06);
+    color: #d8dee4;
+    padding: 1px 6px;
+    border-radius: 2px;
+}
+
+/* ----------------------------------------------------------- last-resort chrome overrides
+ *
+ * When Splunk 10.4 ignores theme="dark" and hands us a light panel body,
+ * these overrides force the panel chrome dark. Wildcards catch React
+ * class-name hashing. Only loaded when a Carbide dashboard opens (via
+ * stylesheet="carbide.css" on each form), so the scope is naturally
+ * limited to this app.
+ */
+
+.dashboard-panel,
+.dashboard-panel > .panel-body,
+[class*="dashboard-panel"],
+[class*="dashboard-panel"] > [class*="panel-body"],
+[data-test="panel"],
+[data-test="panel"] > [class*="body"],
+[data-test="dashboard-panel"],
+[data-test="dashboard-cell"] > * {
+    background-color: #1b1c1d !important;
+    color: #b8bec5 !important;
+}
+
+.dashboard-panel h2.panel-title,
+[class*="dashboard-panel"] [class*="panel-title"],
+[class*="panel-title"] {
+    color: #d8dee4 !important;
+    background-color: transparent !important;
+}
+
+/* Outer body outside panels — the "content area" between panels. */
+.dashboard-body,
+.dashboard-body > *,
+[class*="dashboard-body"],
+[class*="dashboard-body"] > * {
+    background-color: transparent !important;
+}
+.section-body,
+[class*="section-body"] {
+    background-color: #0c1014 !important;
+}

@@ -26,8 +26,9 @@
     <row depends="$show_get_started$">
         <panel>
             <html>
-                <h2 style="color:#d8dee4;margin:6px 0 4px 0;">Welcome to Carbide</h2>
-                <p style="color:#b8bec5;margin:0 0 14px 0;">
+              <div class="carbide-panel-content">
+                <h2 style="margin:6px 0 4px 0;">Welcome to Carbide</h2>
+                <p style="margin:0 0 14px 0;">
                   Three quick steps to start watching your data sources for outages.
                   No PhD required.
                 </p>
@@ -73,6 +74,7 @@
                   <a href="settings">Settings &#8250; Use recommended defaults</a>
                   applies sensible bootstrap values for max gap, max latency, schedule.
                 </p>
+              </div>
             </html>
         </panel>
     </row>
@@ -233,12 +235,14 @@
     <row depends="$show_dashboard$">
         <panel>
             <html>
-                <p style="color:#7a8590;font-size:13px;margin:0;">
+              <div class="carbide-panel-content" style="padding:10px 16px;">
+                <p style="font-size:13px;margin:0;">
                   Looking for more?
-                  <a href="manage_entities" style="color:#5aa8f5;">Manage entities</a> ·
-                  <a href="manage_suggestions" style="color:#5aa8f5;">Threshold suggestions</a> ·
-                  <a href="trends" style="color:#5aa8f5;">History</a>
+                  <a href="manage_entities">Manage entities</a> ·
+                  <a href="manage_suggestions">Threshold suggestions</a> ·
+                  <a href="trends">History</a>
                 </p>
+              </div>
             </html>
         </panel>
     </row>
