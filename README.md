@@ -184,9 +184,9 @@ skip MAINT rows automatically. Use the bulk-action toolbar or
 Discovery searches for the non-default tracking modes ship `disabled=1`.
 Enable any of them from **Settings > Searches** when you need that axis:
 
-- `Carbide - Discover hosts (advanced: index + host)`
-- `Carbide - Discover hosts (advanced: host + source)`
-- `Carbide - Discover sources (advanced: index + source)`
+- `Carbide - Discover hosts (advanced: index and host)`
+- `Carbide - Discover hosts (advanced: host and source)`
+- `Carbide - Discover sources (advanced: index and source)`
 
 Default-enabled:
 

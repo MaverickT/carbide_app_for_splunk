@@ -74,50 +74,43 @@
         "ds_watching": {
             "type": "ds.search",
             "options": {
-                "query": "| union [ | inputlookup carbide_tracked_hosts_lookup ] [ | inputlookup carbide_tracked_sources_lookup ] | stats sum(monitored) as count | eval count = coalesce(count, 0)",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "| union [ | inputlookup carbide_tracked_hosts_lookup ] [ | inputlookup carbide_tracked_sources_lookup ] | stats sum(monitored) as count | eval count = coalesce(count, 0)"
             }
         },
         "ds_ok": {
             "type": "ds.search",
             "options": {
-                "query": "`carbide_cached_status` | search status=\"OK\" | stats count",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "`carbide_cached_status` | search status=\"OK\" | stats count"
             }
         },
         "ds_late": {
             "type": "ds.search",
             "options": {
-                "query": "`carbide_cached_status` | search status=\"LATE\" | stats count",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "`carbide_cached_status` | search status=\"LATE\" | stats count"
             }
         },
         "ds_down": {
             "type": "ds.search",
             "options": {
-                "query": "`carbide_cached_status` | search status=\"DOWN\" OR status=\"CRITICAL\" | stats count",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "`carbide_cached_status` | search status=\"DOWN\" OR status=\"CRITICAL\" | stats count"
             }
         },
         "ds_maint": {
             "type": "ds.search",
             "options": {
-                "query": "`carbide_cached_status` | search status=\"MAINT\" | stats count",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "`carbide_cached_status` | search status=\"MAINT\" | stats count"
             }
         },
         "ds_attention": {
             "type": "ds.search",
             "options": {
-                "query": "`carbide_cached_status` | `carbide_friendly_status` | search (status=\"DOWN\" OR status=\"CRITICAL\" OR status=\"LATE\") | `carbide_humanize_duration(current_gap)` | `carbide_humanize_duration(current_latency)` | eval entity_label = case(entity_type=\"host\", \"host\", 1=1, \"source\") | sort - case(status=\"CRITICAL\",3, status=\"DOWN\",2, status=\"LATE\",1, 1=1, 0), -current_gap | head 25 | table status_h, entity_label, entity_key, current_gap_h, current_latency_h, tags | rename status_h as \"status\", entity_label as \"type\", entity_key as \"entity\", current_gap_h as \"no events for\", current_latency_h as \"ingest delay\", tags as \"tags\"",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "`carbide_cached_status` | `carbide_friendly_status` | search (status=\"DOWN\" OR status=\"CRITICAL\" OR status=\"LATE\") | `carbide_humanize_duration(current_gap)` | `carbide_humanize_duration(current_latency)` | eval entity_label = case(entity_type=\"host\", \"host\", 1=1, \"source\") | sort - case(status=\"CRITICAL\",3, status=\"DOWN\",2, status=\"LATE\",1, 1=1, 0), -current_gap | head 25 | table status_h, entity_label, entity_key, current_gap_h, current_latency_h, tags | rename status_h as \"status\", entity_label as \"type\", entity_key as \"entity\", current_gap_h as \"no events for\", current_latency_h as \"ingest delay\", tags as \"tags\""
             }
         },
         "ds_awaiting": {
             "type": "ds.search",
             "options": {
-                "query": "| union [ | inputlookup carbide_tracked_hosts_lookup | eval entity_type=\"host\" ] [ | inputlookup carbide_tracked_sources_lookup | eval entity_type=\"source\" ] | where monitored=0 | eval first_seen_h = strftime(first_seen,\"%Y-%m-%d %H:%M:%S\") | sort - first_seen | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h | rename entity_type as \"type\", entity_key as \"entity\", tracking_mode as \"mode\", first_seen_h as \"first seen\"",
-                "queryParameters": { "earliest": "0", "latest": "now" }
+                "query": "| union [ | inputlookup carbide_tracked_hosts_lookup | eval entity_type=\"host\" ] [ | inputlookup carbide_tracked_sources_lookup | eval entity_type=\"source\" ] | where monitored=0 | eval first_seen_h = strftime(first_seen,\"%Y-%m-%d %H:%M:%S\") | sort - first_seen | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h | rename entity_type as \"type\", entity_key as \"entity\", tracking_mode as \"mode\", first_seen_h as \"first seen\""
             }
         }
     },
