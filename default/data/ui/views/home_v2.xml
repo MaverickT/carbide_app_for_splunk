@@ -1,0 +1,185 @@
+<dashboard version="2" theme="dark">
+    <label>Home (v2 preview)</label>
+    <description>Dashboard Studio version of Home. Native theme support - no CSS overrides needed. If this feels right we port the rest of the app to Studio next.</description>
+    <definition><![CDATA[
+{
+    "title": "Home",
+    "description": "Health at a glance for everything Carbide is watching.",
+    "visualizations": {
+        "kpi_watching": {
+            "type": "splunk.singlevalue",
+            "title": "Currently watching",
+            "dataSources": { "primary": "ds_watching" },
+            "options": {
+                "majorColor": "#4ea1f2",
+                "underLabel": "entities"
+            }
+        },
+        "kpi_ok": {
+            "type": "splunk.singlevalue",
+            "title": "Healthy",
+            "dataSources": { "primary": "ds_ok" },
+            "options": {
+                "majorColor": "#53a051",
+                "underLabel": "OK"
+            }
+        },
+        "kpi_late": {
+            "type": "splunk.singlevalue",
+            "title": "Delayed",
+            "dataSources": { "primary": "ds_late" },
+            "options": {
+                "majorColor": "#f8be34",
+                "underLabel": "LATE"
+            }
+        },
+        "kpi_down": {
+            "type": "splunk.singlevalue",
+            "title": "Missing",
+            "dataSources": { "primary": "ds_down" },
+            "options": {
+                "majorColor": "#dc4e41",
+                "underLabel": "DOWN / CRITICAL"
+            }
+        },
+        "kpi_maint": {
+            "type": "splunk.singlevalue",
+            "title": "Snoozed",
+            "dataSources": { "primary": "ds_maint" },
+            "options": {
+                "majorColor": "#4ea1f2",
+                "underLabel": "in maintenance"
+            }
+        },
+        "table_attention": {
+            "type": "splunk.table",
+            "title": "What needs attention right now",
+            "dataSources": { "primary": "ds_attention" },
+            "options": {
+                "count": 25,
+                "drilldown": "cell"
+            }
+        },
+        "table_awaiting": {
+            "type": "splunk.table",
+            "title": "Auto-discovered entities awaiting review (monitored=0)",
+            "dataSources": { "primary": "ds_awaiting" },
+            "options": {
+                "count": 15,
+                "drilldown": "cell"
+            }
+        }
+    },
+    "dataSources": {
+        "ds_watching": {
+            "type": "ds.search",
+            "options": {
+                "query": "| inputlookup carbide_tracked_hosts_lookup | append [ | inputlookup carbide_tracked_sources_lookup ] | stats sum(monitored) as count | eval count = coalesce(count, 0)",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        },
+        "ds_ok": {
+            "type": "ds.search",
+            "options": {
+                "query": "`carbide_cached_status` | search status=\"OK\" | stats count",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        },
+        "ds_late": {
+            "type": "ds.search",
+            "options": {
+                "query": "`carbide_cached_status` | search status=\"LATE\" | stats count",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        },
+        "ds_down": {
+            "type": "ds.search",
+            "options": {
+                "query": "`carbide_cached_status` | search status=\"DOWN\" OR status=\"CRITICAL\" | stats count",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        },
+        "ds_maint": {
+            "type": "ds.search",
+            "options": {
+                "query": "`carbide_cached_status` | search status=\"MAINT\" | stats count",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        },
+        "ds_attention": {
+            "type": "ds.search",
+            "options": {
+                "query": "`carbide_cached_status` | `carbide_friendly_status` | search (status=\"DOWN\" OR status=\"CRITICAL\" OR status=\"LATE\") | `carbide_humanize_duration(current_gap)` | `carbide_humanize_duration(current_latency)` | eval entity_label = case(entity_type=\"host\", \"host\", 1=1, \"source\") | sort - case(status=\"CRITICAL\",3, status=\"DOWN\",2, status=\"LATE\",1, 1=1, 0), -current_gap | head 25 | table status_h, entity_label, entity_key, current_gap_h, current_latency_h, tags | rename status_h as \"status\", entity_label as \"type\", entity_key as \"entity\", current_gap_h as \"no events for\", current_latency_h as \"ingest delay\", tags as \"tags\"",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        },
+        "ds_awaiting": {
+            "type": "ds.search",
+            "options": {
+                "query": "| inputlookup carbide_tracked_hosts_lookup | eval entity_type=\"host\" | append [ | inputlookup carbide_tracked_sources_lookup | eval entity_type=\"source\" ] | where monitored=0 | eval first_seen_h = strftime(first_seen,\"%Y-%m-%d %H:%M:%S\") | sort - first_seen | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h | rename entity_type as \"type\", entity_key as \"entity\", tracking_mode as \"mode\", first_seen_h as \"first seen\"",
+                "queryParameters": { "earliest": "0", "latest": "now" }
+            }
+        }
+    },
+    "inputs": {},
+    "defaults": {
+        "visualizations": {
+            "global": {
+                "showProgressBar": true
+            }
+        }
+    },
+    "layout": {
+        "tabs": {
+            "items": [
+                { "layoutId": "tab_home" }
+            ]
+        },
+        "layoutDefinitions": {
+            "tab_home": {
+                "type": "grid",
+                "options": {},
+                "structure": [
+                    {
+                        "item": "kpi_watching",
+                        "type": "block",
+                        "position": { "x": 0,   "y": 0, "w": 240, "h": 130 }
+                    },
+                    {
+                        "item": "kpi_ok",
+                        "type": "block",
+                        "position": { "x": 240, "y": 0, "w": 240, "h": 130 }
+                    },
+                    {
+                        "item": "kpi_late",
+                        "type": "block",
+                        "position": { "x": 480, "y": 0, "w": 240, "h": 130 }
+                    },
+                    {
+                        "item": "kpi_down",
+                        "type": "block",
+                        "position": { "x": 720, "y": 0, "w": 240, "h": 130 }
+                    },
+                    {
+                        "item": "kpi_maint",
+                        "type": "block",
+                        "position": { "x": 960, "y": 0, "w": 240, "h": 130 }
+                    },
+                    {
+                        "item": "table_attention",
+                        "type": "block",
+                        "position": { "x": 0, "y": 140, "w": 1200, "h": 380 }
+                    },
+                    {
+                        "item": "table_awaiting",
+                        "type": "block",
+                        "position": { "x": 0, "y": 530, "w": 1200, "h": 300 }
+                    }
+                ]
+            }
+        },
+        "globalInputs": []
+    }
+}
+    ]]></definition>
+</dashboard>
