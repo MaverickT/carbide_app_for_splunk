@@ -364,3 +364,37 @@ td.carbide-saving {
 [class*="section-body"] {
     background-color: #0c1014 !important;
 }
+
+/* Dashboard header chrome — the page title (`<label>`) and description
+   (`<description>`) that Splunk renders above the first row. These sit
+   outside any `<html>` panel so the other overrides don't reach them. */
+.dashboard-header,
+[class*="dashboard-header"],
+.dashboard-view-header,
+[class*="dashboard-view-header"],
+.section-header,
+[class*="section-header"] {
+    background-color: transparent !important;
+}
+.dashboard-header h1,
+.dashboard-header .dashboard-title,
+[class*="dashboard-header"] h1,
+[class*="dashboard-header"] [class*="title"],
+.dashboard-view-header h1,
+[class*="dashboard-view-header"] h1,
+.section-header h1,
+[class*="section-header"] h1,
+h1.dashboard-title,
+[class*="dashboard-title"] {
+    color: #d8dee4 !important;
+}
+.dashboard-header .dashboard-description,
+[class*="dashboard-header"] [class*="description"],
+.dashboard-view-header .description,
+[class*="dashboard-view-header"] [class*="description"],
+.section-header .description,
+[class*="section-header"] [class*="description"],
+.dashboard-description,
+[class*="dashboard-description"] {
+    color: #b8bec5 !important;
+}
