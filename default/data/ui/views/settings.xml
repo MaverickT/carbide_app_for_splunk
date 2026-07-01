@@ -50,7 +50,6 @@
                             <option value="default_monitoring_schedule">default_monitoring_schedule (247|weekdays|business_hours)</option>
                             <option value="business_hours_start">business_hours_start (HHMM, e.g. 800)</option>
                             <option value="business_hours_end">business_hours_end (HHMM, e.g. 1600)</option>
-                            <option value="business_timezone">business_timezone (IANA, e.g. Europe/Ljubljana)</option>
                         </select>
                     </label>
                     <label>Value <input type="text" id="carbide_new_setting_value" placeholder="e.g. 600" /></label>
