@@ -424,10 +424,15 @@ h1.dashboard-title,
     border-color: #2a3540 !important;
 }
 
-.dashboard-panel table thead th,
-[class*="dashboard-panel"] table thead th,
-[data-test="panel"] table thead th {
-    background-color: #232629 !important;
+/* `background` shorthand, not background-color: the light theme paints
+   header cells with a background-image GRADIENT, which would otherwise
+   sit on top of a background-color override and keep the header white. */
+.dashboard-panel table th,
+[class*="dashboard-panel"] table th,
+[data-test="panel"] table th,
+.dashboard-panel table thead td,
+[class*="dashboard-panel"] table thead td {
+    background: #232629 !important;
     color: #d8dee4 !important;
     border-color: #2a3540 !important;
 }
@@ -465,6 +470,16 @@ h1.dashboard-title,
 }
 .dashboard-panel .single-value text,
 [class*="dashboard-panel"] [class*="single-value"] text {
+    fill: #d8dee4 !important;
+}
+/* broader net: Splunk's single-value markup varies by version
+   (single-value / singlevalue / single-result, HTML vs SVG) */
+.dashboard-panel [class*="single"],
+[class*="dashboard-panel"] [class*="single"] {
+    color: #d8dee4 !important;
+}
+.dashboard-panel [class*="single"] text,
+[class*="dashboard-panel"] [class*="single"] text {
     fill: #d8dee4 !important;
 }
 
