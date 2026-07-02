@@ -71,14 +71,14 @@
                          data-carbide-bulk-target="carbide_threshold_hosts_table"
                          data-carbide-target-field="max_latency_seconds"
                          data-carbide-source-column="suggested_max_latency">
-                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_latency to visible</button>
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_latency to filtered rows</button>
                     </div>
                     <div class="carbide-apply-all-wrap"
                          data-carbide-collection="carbide_tracked_hosts"
                          data-carbide-bulk-target="carbide_threshold_hosts_table"
                          data-carbide-target-field="max_gap_seconds"
                          data-carbide-source-column="suggested_max_gap">
-                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_gap to visible</button>
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_gap to filtered rows</button>
                     </div>
                 </div>
             </html>
@@ -129,14 +129,14 @@
                          data-carbide-bulk-target="carbide_threshold_sources_table"
                          data-carbide-target-field="max_latency_seconds"
                          data-carbide-source-column="suggested_max_latency">
-                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_latency to visible</button>
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_latency to filtered rows</button>
                     </div>
                     <div class="carbide-apply-all-wrap"
                          data-carbide-collection="carbide_tracked_sources"
                          data-carbide-bulk-target="carbide_threshold_sources_table"
                          data-carbide-target-field="max_gap_seconds"
                          data-carbide-source-column="suggested_max_gap">
-                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_gap to visible</button>
+                        <button class="btn btn-primary carbide-apply-all">Apply suggested max_gap to filtered rows</button>
                     </div>
                 </div>
             </html>

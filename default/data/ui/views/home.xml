@@ -3,7 +3,7 @@
     <description>Health at a glance for everything Carbide is watching.</description>
 
     <search id="home_kv_counts">
-        <progress>
+        <done>
             <condition match="$result.monitored_count$ == 0">
                 <set token="show_get_started">1</set>
                 <unset token="show_dashboard">none</unset>
@@ -12,7 +12,7 @@
                 <set token="show_dashboard">1</set>
                 <unset token="show_get_started">none</unset>
             </condition>
-        </progress>
+        </done>
         <query>
             | union
                 [ | inputlookup carbide_tracked_hosts_lookup ]
@@ -63,15 +63,15 @@
                           Wait one 5-minute snapshot cycle, then refresh this page.
                           You'll see live health and any entities that aren't
                           reporting. Configure alert actions in
-                          Settings &#8250; Searches for the four alerts that ship
-                          with the app.
+                          Settings &#8250; Searches for the two alerts that ship
+                          with the app (Hosts and Sources).
                         </p>
                     </div>
                 </div>
                 <p style="color:#7a8590;font-size:12px;margin-top:14px;">
-                  Need recommended threshold values?
-                  <a href="settings">Settings &#8250; Use recommended defaults</a>
-                  applies sensible bootstrap values for max gap, max latency, schedule.
+                  Want different bootstrap thresholds for newly discovered entities?
+                  Edit the <code>carbide_default_*</code> search macros &#8212;
+                  <a href="settings">Settings</a> explains each one.
                 </p>
               </div>
             </html>
@@ -135,7 +135,7 @@
                 <option name="rangeColors">["0x53a051","0xdc4e41","0xdc4e41"]</option>
                 <option name="height">110</option>
                 <drilldown>
-                    <link target="_blank">manage_entities?form.status_tok=DOWN,CRITICAL</link>
+                    <link target="_blank">manage_entities?form.status_tok=DOWN%7CCRITICAL</link>
                 </drilldown>
             </single>
         </panel>

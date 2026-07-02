@@ -20,6 +20,17 @@
             <choice value="0">Off (not watching)</choice>
             <default>*</default>
         </input>
+        <input type="dropdown" token="status_tok" searchWhenChanged="true">
+            <label>Status</label>
+            <choice value=".*">All</choice>
+            <choice value="OK">Healthy</choice>
+            <choice value="LATE">Delayed</choice>
+            <choice value="DOWN|CRITICAL">Missing (DOWN / CRITICAL)</choice>
+            <choice value="MAINT">Snoozed</choice>
+            <choice value="OFF_HOURS">Off-hours</choice>
+            <choice value="NEW">Just added</choice>
+            <default>.*</default>
+        </input>
         <input type="text" token="search_tok" searchWhenChanged="true">
             <label>Search</label>
             <default>.*</default>
@@ -187,6 +198,7 @@
                         | where match(coalesce(tags,""), "$tag_tok$")
                         | search monitored="$monitored_tok$"
                         | eval status        = coalesce(last_status, "NEW")
+                        | where match(status, "^($status_tok$)$")
                         | `carbide_friendly_status`
                         | eval first_seen_h   = if(isnull(first_seen),  "-", strftime(first_seen,  "%Y-%m-%d %H:%M:%S"))
                         | eval last_updated_h = if(isnull(last_updated),"-", strftime(last_updated,"%Y-%m-%d %H:%M:%S"))
@@ -271,6 +283,7 @@
                         | where match(coalesce(tags,""), "$tag_tok$")
                         | search monitored="$monitored_tok$"
                         | eval status        = coalesce(last_status, "NEW")
+                        | where match(status, "^($status_tok$)$")
                         | `carbide_friendly_status`
                         | eval first_seen_h   = if(isnull(first_seen),  "-", strftime(first_seen,  "%Y-%m-%d %H:%M:%S"))
                         | eval last_updated_h = if(isnull(last_updated),"-", strftime(last_updated,"%Y-%m-%d %H:%M:%S"))

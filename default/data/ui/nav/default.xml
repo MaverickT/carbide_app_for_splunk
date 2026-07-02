@@ -1,6 +1,5 @@
 <nav search_view="search" color="#0a7c5b">
     <view name="home" default="true" />
-    <view name="home_v2" />
     <collection label="Manage">
         <view name="manage_entities"       />
         <view name="manage_assets"         />

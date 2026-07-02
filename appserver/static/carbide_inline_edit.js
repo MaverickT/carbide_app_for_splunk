@@ -25,10 +25,11 @@
  *   edit_tcp capability requirement of receivers/simple).
  *
  * Bulk updates:
- *   Use `storage/collections/data/<coll>/batch_save` so 1,000 rows are one
- *   POST instead of 2,000 round-trips. The handler reads the entire
- *   currently-visible row set in a single $in query, applies the field
- *   change in JS, then bulk-saves.
+ *   The row set is pulled from the table's backing search job (count=0 =
+ *   every result), NOT scraped from the DOM -- so "apply to filtered"
+ *   really covers every row matching the current filter, not just the
+ *   rendered page. Writes go through `batch_save` in chunks of 200 keys
+ *   (keeps the $or query URL and the batch body within splunkd limits).
  */
 require([
     'underscore',
@@ -313,7 +314,9 @@ require([
                     if (isDuration) {
                         $input = $('<select>').addClass('carbide-edit-input');
                         MAINTENANCE_PRESETS.forEach(function (p) {
-                            $input.append($('<option>').val(p.offset === 0 ? '0' : '+' + p.offset).text(p.label));
+                            // The 's' unit is required: a bare "+900" falls through
+                            // parseDurationToEpoch's regex and is stored as epoch 900.
+                            $input.append($('<option>').val(p.offset === 0 ? '0' : '+' + p.offset + 's').text(p.label));
                         });
                     } else if (meta.options[field]) {
                         $input = $('<select>').addClass('carbide-edit-input');
@@ -411,22 +414,34 @@ require([
         return keys;
     }
 
-    function visiblePairsOf($table, sourceColHeader) {
-        var keyCol, srcCol;
-        $table.find('table thead th').each(function (i, th) {
-            var name = $(th).attr('data-carbide-original') || $(th).text().trim();
-            if (name === '_key')          keyCol = i;
-            if (name === sourceColHeader) srcCol = i;
+    // Every result row of the table's backing search, not just the rendered
+    // page. Splunk tables paginate at `count`, so DOM scraping silently
+    // misses rows beyond page 1; count=0 asks splunkd for all of them.
+    // Zero-result searches never emit 'data', so callers must handle the
+    // empty case up front (visibleKeysOf on the DOM does that).
+    function fetchAllRows(targetId) {
+        return new Promise(function (resolve, reject) {
+            var tv = mvc.Components.get(targetId);
+            var smId = tv && tv.options && tv.options.managerid;
+            var sm = (tv && tv.manager) || (smId && mvc.Components.get(smId));
+            if (!sm || !sm.data) return reject(new Error('search manager not found for ' + targetId));
+            var results = sm.data('results', { output_mode: 'json', count: 0 });
+            function emit() {
+                var d = results.data();
+                resolve((d && d.results) || []);
+            }
+            if (results.hasData()) return emit();
+            results.on('data', emit);
+            results.on('error', function (err) { reject(err || new Error('results fetch failed')); });
         });
-        if (keyCol === undefined || srcCol === undefined) return null;
-        var pairs = [];
-        $table.find('table tbody tr').each(function (_, tr) {
-            var $tr = $(tr);
-            var k = $tr.children('td').eq(keyCol).text().trim();
-            var v = Number($tr.children('td').eq(srcCol).text().trim());
-            if (k && !isNaN(v) && v > 0) pairs.push({ _key: k, value: v });
-        });
-        return pairs;
+    }
+
+    var BULK_CHUNK = 200;
+
+    function chunked(arr, n) {
+        var out = [];
+        for (var i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+        return out;
     }
 
     function kvBulkPatch(opts) {
@@ -438,19 +453,26 @@ require([
         var $btn = opts.button;
         if ($btn) $btn.prop('disabled', true);
 
-        return kvQuery(opts.collection, { '$or': keys.map(function (k) { return { _key: k }; }) })
-            .then(function (docs) {
-                if (!docs || !docs.length) throw new Error('no docs returned');
-                var ts = Math.floor(Date.now() / 1000);
-                docs.forEach(function (doc) {
-                    opts.mutator(doc);
-                    doc.last_updated = ts;
-                });
-                return kvBatchSave(opts.collection, docs).then(function () { return docs.length; });
-            })
-            .then(function (n) {
+        var ts = Math.floor(Date.now() / 1000);
+        var total = 0;
+
+        return chunked(keys, BULK_CHUNK).reduce(function (prev, chunk) {
+            return prev.then(function () {
+                return kvQuery(opts.collection, { '$or': chunk.map(function (k) { return { _key: k }; }) })
+                    .then(function (docs) {
+                        if (!docs || !docs.length) return;
+                        docs.forEach(function (doc) {
+                            opts.mutator(doc);
+                            doc.last_updated = ts;
+                        });
+                        return kvBatchSave(opts.collection, docs).then(function () { total += docs.length; });
+                    });
+            });
+        }, Promise.resolve())
+            .then(function () {
+                if (!total) throw new Error('no docs returned');
                 if ($btn) $btn.prop('disabled', false);
-                toast((opts.toastOk || 'applied to {n} rows').replace('{n}', n), 'ok');
+                toast((opts.toastOk || 'applied to {n} rows').replace('{n}', total), 'ok');
                 refreshTable(opts.tableView);
                 if (opts.onDone) opts.onDone();
             })
@@ -475,7 +497,13 @@ require([
         var meta      = readAttrs($table);
         var tableView = mvc.Components.get(targetId);
 
-        function refreshCount() { $count.text(visibleKeysOf($table).length + ' rows in view'); }
+        function refreshCount() {
+            var smId = tableView && tableView.options && tableView.options.managerid;
+            var sm = (tableView && tableView.manager) || (smId && mvc.Components.get(smId));
+            var props = sm && sm.job && sm.job.properties && sm.job.properties();
+            var rc = props && props.resultCount;
+            $count.text((rc != null ? rc : visibleKeysOf($table).length) + ' rows match filter');
+        }
         if (tableView) { tableView.on('rendered', refreshCount); setTimeout(refreshCount, 400); }
 
         $btn.on('click', function () {
@@ -492,17 +520,22 @@ require([
             }
             var verr = validate(field, resolved, meta);
             if (verr) { toast(verr, 'err'); return; }
+            if (!visibleKeysOf($table).length) { toast('no rows in view', 'err'); return; }
 
-            kvBulkPatch({
-                collection: collection,
-                keys:       visibleKeysOf($table),
-                mutator:    function (doc) { doc[field] = resolved; },
-                confirmMsg: 'Set ' + field + ' = ' + resolved + ' on {n} rows ?',
-                button:     $btn,
-                tableView:  tableView,
-                toastOk:    'bulk update applied to {n} rows',
-                toastErr:   'bulk update failed',
-                onDone:     function () { $valInput.val(''); }
+            fetchAllRows(targetId).then(function (rows) {
+                kvBulkPatch({
+                    collection: collection,
+                    keys:       rows.map(function (r) { return r._key; }).filter(Boolean),
+                    mutator:    function (doc) { doc[field] = resolved; },
+                    confirmMsg: 'Set ' + field + ' = ' + resolved + ' on {n} rows ?',
+                    button:     $btn,
+                    tableView:  tableView,
+                    toastOk:    'bulk update applied to {n} rows',
+                    toastErr:   'bulk update failed',
+                    onDone:     function () { $valInput.val(''); }
+                });
+            }).catch(function (err) {
+                toast('could not read filtered rows: ' + (err && err.message ? err.message : err), 'err');
             });
         });
     }
@@ -527,14 +560,19 @@ require([
                 var asNum = Number(literal);
                 resolved = isNaN(asNum) ? literal : asNum;
             } else { toast('button missing value', 'err'); return; }
+            if (!visibleKeysOf($table).length) { toast('no rows in view', 'err'); return; }
 
-            kvBulkPatch({
-                collection: collection,
-                keys:       visibleKeysOf($table),
-                mutator:    function (doc) { doc[field] = resolved; },
-                confirmMsg: confirmMsg || ('Set ' + field + ' on {n} rows ?'),
-                button:     $btn,
-                tableView:  mvc.Components.get(targetId)
+            fetchAllRows(targetId).then(function (rows) {
+                kvBulkPatch({
+                    collection: collection,
+                    keys:       rows.map(function (r) { return r._key; }).filter(Boolean),
+                    mutator:    function (doc) { doc[field] = resolved; },
+                    confirmMsg: confirmMsg || ('Set ' + field + ' on {n} rows ?'),
+                    button:     $btn,
+                    tableView:  mvc.Components.get(targetId)
+                });
+            }).catch(function (err) {
+                toast('could not read filtered rows: ' + (err && err.message ? err.message : err), 'err');
             });
         });
     }
@@ -550,22 +588,31 @@ require([
         if (!$table.length || !collection || !targetField || !sourceCol) return;
 
         $btn.on('click', function () {
-            var pairs = visiblePairsOf($table, sourceCol);
-            if (pairs === null) { toast('column not found (' + sourceCol + ')', 'err'); return; }
-            if (!pairs.length)  { toast('no valid rows in view', 'err'); return; }
+            if (!visibleKeysOf($table).length) { toast('no rows in view', 'err'); return; }
 
-            var valueMap = {};
-            pairs.forEach(function (p) { valueMap[p._key] = p.value; });
+            fetchAllRows(targetId).then(function (rows) {
+                var pairs = [];
+                rows.forEach(function (r) {
+                    var v = Number(r[sourceCol]);
+                    if (r._key && !isNaN(v) && v > 0) pairs.push({ _key: r._key, value: v });
+                });
+                if (!pairs.length) { toast('no valid rows in view (missing ' + sourceCol + '?)', 'err'); return; }
 
-            kvBulkPatch({
-                collection: collection,
-                keys:       pairs.map(function (p) { return p._key; }),
-                mutator:    function (doc) {
-                    if (valueMap[doc._key] !== undefined) doc[targetField] = valueMap[doc._key];
-                },
-                confirmMsg: 'Apply ' + sourceCol + ' → ' + targetField + ' on {n} rows ?',
-                button:     $btn,
-                tableView:  mvc.Components.get(targetId)
+                var valueMap = {};
+                pairs.forEach(function (p) { valueMap[p._key] = p.value; });
+
+                kvBulkPatch({
+                    collection: collection,
+                    keys:       pairs.map(function (p) { return p._key; }),
+                    mutator:    function (doc) {
+                        if (valueMap[doc._key] !== undefined) doc[targetField] = valueMap[doc._key];
+                    },
+                    confirmMsg: 'Apply ' + sourceCol + ' → ' + targetField + ' on {n} rows ?',
+                    button:     $btn,
+                    tableView:  mvc.Components.get(targetId)
+                });
+            }).catch(function (err) {
+                toast('could not read filtered rows: ' + (err && err.message ? err.message : err), 'err');
             });
         });
     }
@@ -576,10 +623,8 @@ require([
         'carbide_tracked_hosts_table',
         'carbide_tracked_sources_table',
         'carbide_entity_filters_table',
-        'carbide_settings_table',
         'carbide_threshold_hosts_table',
         'carbide_threshold_sources_table',
-        'carbide_entities_table',
         'carbide_assets_table',
         'carbide_holidays_table'
     ];
@@ -716,73 +761,4 @@ require([
         });
     });
 
-    // ---------------------------------------------------------------- recommended defaults
-
-    var RECOMMENDED_DEFAULTS = [
-        { setting_key: 'default_monitored',            setting_value: '0'      },
-        { setting_key: 'default_max_latency_seconds',  setting_value: '600'    },
-        { setting_key: 'default_max_gap_seconds',      setting_value: '3600'   },
-        { setting_key: 'default_monitoring_schedule',  setting_value: '247'    }
-    ];
-
-    // The button was removed from settings.xml because discovery no longer
-    // reads carbide_settings — defaults live in carbide_default_* macros
-    // now. The handler stays as a no-op guard in case any local override
-    // still references it.
-    $('#carbide_use_recommended_defaults_disabled').on('click', function () {
-        var $btn = $(this);
-        var collection = $btn.data('carbide-collection') || 'carbide_settings';
-        var targetId   = $btn.data('carbide-target');
-
-        if (!window.confirm('Set the four bootstrap defaults to recommended values?')) return;
-        $btn.prop('disabled', true);
-
-        // Fetch every existing row for these keys in one query, merge, then
-        // batch_save. Rows without an _key become creates; rows with one
-        // become updates - batch_save handles both atomically.
-        kvQuery(collection, { '$or': RECOMMENDED_DEFAULTS.map(function (d) {
-            return { setting_key: d.setting_key };
-        }) }).then(function (rows) {
-            var byKey = {};
-            (rows || []).forEach(function (r) { byKey[r.setting_key] = r; });
-            var docs = RECOMMENDED_DEFAULTS.map(function (d) {
-                var existing = byKey[d.setting_key];
-                return existing ? _.extend({}, existing, { setting_value: d.setting_value }) : d;
-            });
-            return kvBatchSave(collection, docs);
-        }).then(function () {
-            $btn.prop('disabled', false);
-            toast('recommended defaults applied', 'ok');
-            if (targetId) refreshTable(mvc.Components.get(targetId));
-        }).catch(function (err) {
-            $btn.prop('disabled', false);
-            toast('failed: ' + (err && err.message ? err.message : err), 'err');
-        });
-    });
-
-    // ---------------------------------------------------------------- settings upsert
-
-    $('#carbide_save_setting').on('click', function () {
-        var $btn = $(this);
-        var collection = $btn.data('carbide-collection');
-        var targetId   = $btn.data('carbide-target');
-        var key = $('#carbide_new_setting_key').val();
-        var val = ('' + $('#carbide_new_setting_value').val()).trim();
-        if (!key || val === '') { toast('key and value required', 'err'); return; }
-
-        var doc = { setting_key: key, setting_value: val };
-
-        kvQuery(collection, { setting_key: key }).then(function (rows) {
-            var existing = rows && rows.length ? rows[0] : null;
-            return existing && existing._key
-                ? kvUpdate(collection, existing._key, doc)
-                : kvCreate(collection, doc);
-        }).then(function () {
-            toast('setting saved', 'ok');
-            $('#carbide_new_setting_value').val('');
-            refreshTable(mvc.Components.get(targetId));
-        }).catch(function (err) {
-            toast('save failed: ' + (err && err.message ? err.message : err), 'err');
-        });
-    });
 });

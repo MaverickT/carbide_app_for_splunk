@@ -21,15 +21,7 @@ export = system
 access = read : [ * ], write : [ admin, power, sc_admin ]
 export = system
 
-[collections/carbide_settings]
-access = read : [ * ], write : [ admin, power, sc_admin ]
-export = system
-
 [collections/carbide_entity_filters]
-access = read : [ * ], write : [ admin, power, sc_admin ]
-export = system
-
-[collections/carbide_status_history]
 access = read : [ * ], write : [ admin, power, sc_admin ]
 export = system
 
@@ -65,15 +57,7 @@ export = system
 access = read : [ * ], write : [ admin, power, sc_admin ]
 export = system
 
-[transforms/carbide_settings_lookup]
-access = read : [ * ], write : [ admin, power, sc_admin ]
-export = system
-
 [transforms/carbide_entity_filters_lookup]
-access = read : [ * ], write : [ admin, power, sc_admin ]
-export = system
-
-[transforms/carbide_status_history_lookup]
 access = read : [ * ], write : [ admin, power, sc_admin ]
 export = system
 
@@ -100,8 +84,8 @@ export = system
 ###
 ### Saved searches (scheduled discovery + alerts).
 ### Note: saved searches dispatch as the owner; we ship them owned by 'nobody'
-### so the app context is used. Schedules are off by default - admins enable
-### per-search after first run.
+### so the app context is used. Core searches (discovery, snapshots, alerts,
+### seeds) ship enabled; ES-dependent ones ship disabled.
 ###
 
 [savedsearches]

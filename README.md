@@ -207,8 +207,8 @@ and `ek_hs` from the `mvappend` line.
 | Saved search                                       | Schedule    | Default |
 |----------------------------------------------------|-------------|---------|
 | Carbide - Seed Entity Filters                      | hourly      | on      |
-| Carbide - Discover hosts (recommended)             | hourly      | on      |
-| Carbide - Discover sources (recommended)           | hourly      | on      |
+| Carbide - Discover hosts (recommended)             | every 4 h   | on      |
+| Carbide - Discover sources (recommended)           | every 4 h   | on      |
 | Carbide - Status Snapshot: Hosts                   | every 5 min | on      |
 | Carbide - Status Snapshot: Sources                 | every 5 min | on      |
 | Carbide - Heartbeat: Non-OK entities               | hourly      | on      |
@@ -216,9 +216,11 @@ and `ek_hs` from the `mvappend` line.
 | Carbide - Alert: Sources                           | every 5 min | on      |
 
 The **Seed Entity Filters** search is idempotent: it reads the read-only
-CSV at `default/data/lookups/carbide_entity_filters_seed.csv` and
+CSV at `lookups/carbide_entity_filters_seed.csv` and
 inserts its rows into `carbide_entity_filters` **only when the
 collection is empty** — so admin customizations survive app upgrades.
+(The same pattern seeds `carbide_holidays` from
+`lookups/carbide_holidays_seed.csv`.)
 
 The **Status Snapshot** searches now write to KV only when status
 changed or `last_event_time` advanced, and emit an event to the carbide
@@ -235,17 +237,28 @@ For each tracked entity over `carbide_status_window` (default `-24h@h`):
 ```spl
 | tstats max(_time) as last_event_time,
          max(_indextime) as last_indextime,
-         avg(eval(_indextime - _time)) as avg_latency,
+         avg(_time) as avg_time, avg(_indextime) as avg_indextime,
          count
-  where `carbide_entity_filter("hosts")` AND index!=`carbide_index` earliest=`carbide_status_window`
+  where `carbide_entity_filter("hosts")` AND index!=`carbide_index`
+        AND [ <monitored entities from the KV store, via | format> ]
+        earliest=`carbide_status_window`
   by index, host, sourcetype, source
 ```
 
 then:
 
 - `current_gap`     = `now() - last_event_time`
-- `current_latency` = recent ingest latency
+- `current_latency` = `avg_indextime - avg_time` (identical to
+  `avg(_indextime - _time)` by linearity, but stays on tstats' native
+  indexed-field fast path)
 - `status`          = `case(...)` as per the Status model above
+
+The embedded subsearch restricts the tstats to the entities you actually
+monitor, so indexer cost scales with your watch list — not with the size
+of the estate. With nothing monitored the tstats matches nothing.
+Discovery searches group by only the fields their tracking mode needs
+(never `source` unless you enable a source-path mode) and run every four
+hours; run them manually from Settings › Searches when onboarding.
 
 The status macros merge KV-side configuration with live tstats results
 through `inputlookup ... | append [tstats ...] | stats by entity_key` —
@@ -257,9 +270,13 @@ no `join`, no 50,000-row truncation cap.
 |---------------------------|--------------------------------------------|
 | `carbide_tracked_hosts`   | One row per tracked host entity.           |
 | `carbide_tracked_sources` | One row per tracked source entity.         |
-| `carbide_settings`        | Bootstrap defaults consulted by discovery. |
 | `carbide_entity_filters`  | Per-field/per-type include/exclude rules.  |
-| `carbide_status_history`  | Optional short-term status snapshots.      |
+| `carbide_assets`          | Per-host criticality / owner / BU.         |
+| `carbide_holidays`        | Holiday calendar for OFF_HOURS checks.     |
+
+Bootstrap defaults (thresholds, schedule, monitored flag for newly
+discovered entities) live in the `carbide_default_*` search macros —
+see the Settings dashboard for the list.
 
 Long-term trending is shipped to `` index=`carbide_index` `` (default
 `carbide`) with `sourcetype="carbide:status"`. Audit events for inline

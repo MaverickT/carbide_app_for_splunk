@@ -1,25 +1,6 @@
-<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
+<form version="1.1" theme="dark" stylesheet="carbide.css">
     <label>Settings</label>
     <description>Bootstrap defaults applied to NEW entities at discovery time, app health checks, and the audit log of inline edits. Existing entities keep their per-row thresholds until you edit them.</description>
-
-    <row>
-        <panel>
-            <title>Current settings (legacy KV, not read by discovery)</title>
-            <table id="carbide_settings_table"
-                   data-carbide-collection="carbide_settings"
-                   data-carbide-editable="setting_value">
-                <search>
-                    <query>
-                        | inputlookup carbide_settings_lookup
-                        | sort + setting_key
-                        | table _key, setting_key, setting_value
-                    </query>
-                    </search>
-                <option name="drilldown">none</option>
-                <option name="count">100</option>
-            </table>
-        </panel>
-    </row>
 
     <row>
         <panel>
@@ -36,7 +17,6 @@
                         <li><code>carbide_default_business_hours_start</code> — HHMM number, e.g. <em>800</em></li>
                         <li><code>carbide_default_business_hours_end</code> — HHMM number, e.g. <em>1600</em></li>
                     </ul>
-                    <p>The <code>carbide_settings</code> KV collection still exists and its contents show below for reference, but discovery no longer reads it. The rows are harmless — leftover from the old setting-lookup mechanism.</p>
                 </div>
             </html>
         </panel>
@@ -48,8 +28,7 @@
             <table>
                 <search>
                     <query>
-                        | inputlookup carbide_settings_lookup       | stats count as rows | eval check="carbide_settings collection reachable"
-                        | append [ | inputlookup carbide_tracked_hosts_lookup   | stats count as rows | eval check="carbide_tracked_hosts collection reachable" ]
+                        | inputlookup carbide_tracked_hosts_lookup  | stats count as rows | eval check="carbide_tracked_hosts collection reachable"
                         | append [ | inputlookup carbide_tracked_sources_lookup | stats count as rows | eval check="carbide_tracked_sources collection reachable" ]
                         | append [ | inputlookup carbide_entity_filters_lookup  | stats count as rows | eval check="carbide_entity_filters collection reachable (seeded if &gt; 0)" ]
                         | append [ | inputlookup carbide_entity_filters_seed    | stats count as rows | eval check="carbide_entity_filters_seed CSV present" ]
@@ -105,9 +84,9 @@
                         | makeresults
                         | append [ | inputlookup carbide_tracked_hosts_lookup   | stats count as rows | eval collection="carbide_tracked_hosts"   ]
                         | append [ | inputlookup carbide_tracked_sources_lookup | stats count as rows | eval collection="carbide_tracked_sources" ]
-                        | append [ | inputlookup carbide_settings_lookup        | stats count as rows | eval collection="carbide_settings"        ]
                         | append [ | inputlookup carbide_entity_filters_lookup  | stats count as rows | eval collection="carbide_entity_filters"  ]
-                        | append [ | inputlookup carbide_status_history_lookup  | stats count as rows | eval collection="carbide_status_history"  ]
+                        | append [ | inputlookup carbide_assets_lookup          | stats count as rows | eval collection="carbide_assets"          ]
+                        | append [ | inputlookup carbide_holidays_lookup        | stats count as rows | eval collection="carbide_holidays"        ]
                         | where isnotnull(collection)
                         | table collection rows
                     </query>
