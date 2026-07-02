@@ -50,6 +50,21 @@
 }
 .carbide-input:focus { outline: 1px solid #4ea1f2; }
 
+/* placeholder hints must not look like typed values: muted + italic.
+   Explicit color (not opacity) because Firefox dims placeholders on
+   its own and the result varies. */
+.carbide-input::placeholder {
+    color: #5a6470;
+    font-style: italic;
+    opacity: 1;
+}
+/* the inline cell editor has a white background - darker muted gray there */
+.carbide-edit::placeholder {
+    color: #9aa3ab;
+    font-style: italic;
+    opacity: 1;
+}
+
 /* ------------------------------------------------------------- buttons */
 
 .carbide-btn {
