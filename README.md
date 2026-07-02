@@ -428,26 +428,23 @@ carbide_app_for_splunk/
 │   └── data/ui/
 │       ├── nav/default.xml
 │       └── views/
-│           ├── home.xml               SimpleXML
-│           ├── manage_entities.xml    HTML template views: the five
-│           ├── manage_assets.xml      Manage pages render via
-│           ├── manage_holidays.xml    appserver/templates/<view>.html
-│           ├── manage_entity_filters.xml
+│           ├── home.xml               SimpleXML dashboard
+│           ├── manage_entities.xml    The five Manage views are thin
+│           ├── manage_assets.xml      SimpleXML shells (header + nav)
+│           ├── manage_holidays.xml    hosting one <html> panel that
+│           ├── manage_entity_filters.xml   carbide_manage.js renders
 │           ├── manage_suggestions.xml
-│           ├── settings.xml           SimpleXML
-│           ├── trends.xml             SimpleXML
-│           └── alerts.xml             SimpleXML
+│           ├── settings.xml           SimpleXML dashboard
+│           ├── trends.xml             SimpleXML dashboard
+│           └── alerts.xml             SimpleXML dashboard
 ├── lookups/
 │   ├── carbide_entity_filters_seed.csv
 │   └── carbide_holidays_seed.csv
-├── appserver/
-│   ├── templates/                 One per Manage view; each bootstraps
-│   │   └── manage_*.html          carbide_manage.js with data-page=<view>
-│   └── static/
-│       ├── carbide_manage.js      Manage pages: KV REST client, tables,
-│       │                          inline editing, checkbox bulk actions
-│       ├── carbide_manage.css     Dark styling for the Manage pages
-│       └── carbide.css            Styling for the SimpleXML dashboards
+├── appserver/static/
+│   ├── carbide_manage.js          Manage pages: KV REST client, tables,
+│   │                              inline editing, checkbox bulk actions
+│   ├── carbide_manage.css         Dark styling for the Manage pages
+│   └── carbide.css                Styling for the SimpleXML dashboards
 ├── static/
 │   └── README_icons.txt       Where to drop appIcon*.png for Splunkbase
 ├── metadata/default.meta

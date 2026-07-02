@@ -983,6 +983,14 @@
         else if (CRUD_PAGES[page])              crudPage(CRUD_PAGES[page]);
         else root.appendChild(el('div', 'carbide-error', 'Unknown page: ' + page));
     }
+    // The host is a SimpleXML <html> panel that renders asynchronously,
+    // so the root div may not exist yet when this script executes. Poll
+    // briefly instead of assuming DOMContentLoaded is enough.
     document.addEventListener('DOMContentLoaded', boot);
     if (document.readyState !== 'loading') boot();
+    var tries = 0;
+    var poll = setInterval(function () {
+        boot();
+        if (booted || ++tries > 150) clearInterval(poll);
+    }, 100);
 })();

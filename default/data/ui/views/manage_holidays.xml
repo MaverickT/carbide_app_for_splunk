@@ -1,11 +1,20 @@
-<?xml version="1.0"?>
-<!--
-  Custom HTML view: appserver/templates/manage_holidays.html bootstraps
-  appserver/static/carbide_manage.js (data-page="manage_holidays"), which talks to
-  the KV store REST API directly and owns rendering + inline editing.
-  Replaced the SimpleXML form 2026-07-02: Splunk 10.4 ignores
-  theme="dark" and its light-theme result tables were unreadable.
--->
-<view template="carbide_app_for_splunk:/templates/manage_holidays.html" type="html">
+<dashboard version="1.1" theme="dark" script="carbide_manage.js" stylesheet="carbide.css,carbide_manage.css" hideEdit="true">
+    <!--
+      SimpleXML is only the shell here: it provides the Splunk header and
+      app navigation (which custom HTML-template views no longer get on
+      Splunk 10 - the chrome is rendered client-side by Splunk's own page
+      bundles). Everything inside the panel is rendered by
+      appserver/static/carbide_manage.js (routed on data-page), which talks
+      to the KV store REST API directly - no SimpleXML tables involved.
+    -->
     <label>Manage holidays</label>
-</view>
+    <row>
+        <panel>
+            <html>
+                <div id="carbide-manage" class="carbide-page" data-page="manage_holidays">
+                    <div class="carbide-loading">Loading&#8230;</div>
+                </div>
+            </html>
+        </panel>
+    </row>
+</dashboard>
