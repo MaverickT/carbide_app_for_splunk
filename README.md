@@ -54,10 +54,15 @@ Carbide is deliberately small and opinionated:
 - **Settings → Audit trail** sources from Splunk's built-in
   `splunkd_access` log, so every KV write under the app is recorded
   automatically without any browser-side audit code.
-- **Per-tracking-type include/exclude rules** on any of
+- **Scoped include/exclude rules** on any of
   `index` / `host` / `source` / `sourcetype`. Patterns support Splunk
-  wildcards (`*`, `?`). Default rules ship as a seed CSV that's
-  preserved across upgrades.
+  wildcards (`*`, `?`). A rule applies to everything, to one axis
+  (hosts / sources), or to a **single discovery mode** — so two modes
+  on the same axis can split the estate (e.g. track `index=netdev*`
+  per source file via `index_source`, and everything else per
+  sourcetype via `index_sourcetype`, with both discovery searches
+  enabled at once). Default rules ship as a seed CSV that's preserved
+  across upgrades.
 - **Dedicated `carbide` index** for history & trending (name is
   configurable via the `carbide_index` macro).
 - **Change-only history**: snapshots only `| collect` an event when the

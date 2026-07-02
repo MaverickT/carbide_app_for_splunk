@@ -344,7 +344,9 @@
         var kind = col.edit.type;
 
         if (kind === 'select') {
-            input = select(col.edit.options, row[col.key] || col.edit.options[0]);
+            var opts = col.edit.options;
+            var first = (opts[0] && opts[0].value !== undefined) ? opts[0].value : opts[0];
+            input = select(opts, row[col.key] != null && row[col.key] !== '' ? row[col.key] : first);
             input.className = 'carbide-edit';
         } else if (kind === 'snooze') {
             input = select(SNOOZE_PRESETS.map(function (p) { return { value: String(p.secs), label: p.label }; }));
@@ -766,6 +768,19 @@
         load();
     }
 
+    var FILTER_SCOPES = [
+        { value: 'both',             label: 'everything (hosts + sources)' },
+        { value: 'hosts',            label: 'hosts axis (every host mode)' },
+        { value: 'sources',          label: 'sources axis (every source mode)' },
+        { value: 'index_host',       label: 'only: hosts by index+host' },
+        { value: 'host_source',      label: 'only: hosts by host+source' },
+        { value: 'host_sourcetype',  label: 'only: hosts by host+sourcetype' },
+        { value: 'index_sourcetype', label: 'only: sourcetypes by index+sourcetype' },
+        { value: 'index_source',     label: 'only: sources by index+source' }
+    ];
+    var FILTER_SCOPE_LABELS = {};
+    FILTER_SCOPES.forEach(function (s) { FILTER_SCOPE_LABELS[s.value] = s.label; });
+
     var CRUD_PAGES = {
         manage_assets: {
             collection: 'carbide_assets',
@@ -825,11 +840,15 @@
 
         manage_entity_filters: {
             collection: 'carbide_entity_filters',
-            intro: 'Include/exclude rules applied to discovery AND live status, per tracking type, on any of index / host / source / sourcetype. Patterns support Splunk wildcards (* and ?). Example: exclude rotating syslog paths with field=source, mode=exclude, pattern=/var/log/syslog*.',
+            intro: 'Include/exclude rules on any of index / host / source / sourcetype. Patterns support Splunk wildcards (* and ?). ' +
+                   'Scope a rule to a whole axis (hosts / sources / everything), or to ONE discovery mode - that lets two modes on the same axis split the estate: ' +
+                   'e.g. include index=netdev* only for "sources by index+source" and exclude index=netdev* only for "sourcetypes by index+sourcetype". ' +
+                   'Axis-scoped rules also trim the live status searches; mode-scoped rules apply at discovery.',
             sortKey: 'pattern',
             searchFields: ['field_name', 'pattern', 'mode', 'tracking_type', 'notes'],
             columns: [
-                { key: 'tracking_type', label: 'Applies to', edit: { type: 'select', options: ['hosts', 'sources', 'both'] } },
+                { key: 'tracking_type', label: 'Applies to', edit: { type: 'select', options: FILTER_SCOPES },
+                  render: function (r) { return FILTER_SCOPE_LABELS[r.tracking_type] || r.tracking_type; } },
                 { key: 'field_name',    label: 'Field', edit: { type: 'select', options: ['index', 'host', 'source', 'sourcetype'] } },
                 { key: 'mode',          label: 'Mode', edit: { type: 'select', options: ['include', 'exclude'] },
                   render: function (r) {
@@ -843,7 +862,7 @@
                 { key: 'field_name', label: 'Field', options: ['index', 'host', 'source', 'sourcetype'] },
                 { key: 'pattern', label: 'Pattern', placeholder: 'e.g. wineventlog* or web0?' },
                 { key: 'mode', label: 'Mode', options: [{ value: 'include', label: 'include (whitelist)' }, { value: 'exclude', label: 'exclude (blacklist)' }] },
-                { key: 'tracking_type', label: 'Applies to', options: ['hosts', 'sources', 'both'] },
+                { key: 'tracking_type', label: 'Applies to', options: FILTER_SCOPES },
                 { key: 'notes', label: 'Notes', placeholder: 'optional' }
             ],
             validate: function (d) { if (!d.pattern) return 'pattern is required'; },
