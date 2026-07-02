@@ -95,7 +95,7 @@
             <title>Healthy</title>
             <single>
                 <search>
-                    <query>`carbide_cached_status` | search status="OK" | stats count</query>
+                    <query>| `carbide_cached_status` | search status="OK" | stats count</query>
                     </search>
                 <option name="underLabel">OK</option>
                 <option name="colorBy">value</option>
@@ -107,7 +107,7 @@
             <title>Delayed</title>
             <single>
                 <search>
-                    <query>`carbide_cached_status` | search status="LATE" | stats count</query>
+                    <query>| `carbide_cached_status` | search status="LATE" | stats count</query>
                     </search>
                 <option name="underLabel">⚠ LATE</option>
                 <option name="colorBy">value</option>
@@ -125,7 +125,7 @@
             <title>Missing</title>
             <single>
                 <search>
-                    <query>`carbide_cached_status` | search status="DOWN" OR status="CRITICAL" | stats count</query>
+                    <query>| `carbide_cached_status` | search status="DOWN" OR status="CRITICAL" | stats count</query>
                     </search>
                 <option name="underLabel">✗ DOWN / CRITICAL</option>
                 <option name="colorBy">value</option>
@@ -143,7 +143,7 @@
             <title>Snoozed</title>
             <single>
                 <search>
-                    <query>`carbide_cached_status` | search status="MAINT" | stats count</query>
+                    <query>| `carbide_cached_status` | search status="MAINT" | stats count</query>
                     </search>
                 <option name="underLabel">🔧 in maintenance</option>
                 <option name="colorBy">value</option>
@@ -159,7 +159,7 @@
             <table>
                 <search>
                     <query>
-                        `carbide_cached_status`
+                        | `carbide_cached_status`
                         | `carbide_friendly_status`
                         | search (status="DOWN" OR status="CRITICAL" OR status="LATE")
                         | `carbide_humanize_duration(current_gap)`

@@ -33,7 +33,7 @@
             <table id="carbide_threshold_hosts_table">
                 <search>
                     <query>
-                        `carbide_threshold_suggestions_hosts`
+                        | `carbide_threshold_suggestions_hosts`
                         | where match(coalesce(entity_key,""), "$search_tok$")
                         | where if("$delta_tok$"="all", 1=1, abs(coalesce(delta_max_latency,0))/coalesce(current_max_latency,1) &gt; 0.1 OR abs(coalesce(delta_max_gap,0))/coalesce(current_max_gap,1) &gt; 0.1)
                         | sort + entity_key
@@ -91,7 +91,7 @@
             <table id="carbide_threshold_sources_table">
                 <search>
                     <query>
-                        `carbide_threshold_suggestions_sources`
+                        | `carbide_threshold_suggestions_sources`
                         | where match(coalesce(entity_key,""), "$search_tok$")
                         | where if("$delta_tok$"="all", 1=1, abs(coalesce(delta_max_latency,0))/coalesce(current_max_latency,1) &gt; 0.1 OR abs(coalesce(delta_max_gap,0))/coalesce(current_max_gap,1) &gt; 0.1)
                         | sort + entity_key

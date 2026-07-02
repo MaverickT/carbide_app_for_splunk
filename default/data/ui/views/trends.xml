@@ -138,7 +138,7 @@
             <table>
                 <search>
                     <query>
-                        `carbide_cached_status`
+                        | `carbide_cached_status`
                         | where status="DOWN" OR status="CRITICAL" OR status="LATE"
                         | `carbide_humanize_duration(current_gap)`
                         | `carbide_humanize_duration(current_latency)`
