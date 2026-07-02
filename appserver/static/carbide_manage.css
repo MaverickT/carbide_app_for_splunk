@@ -51,18 +51,21 @@
 .carbide-input:focus { outline: 1px solid #4ea1f2; }
 
 /* placeholder hints must not look like typed values: muted + italic.
-   Explicit color (not opacity) because Firefox dims placeholders on
-   its own and the result varies. */
+   Explicit color (not opacity) because Firefox dims placeholders on its
+   own. !important because these pages render inside Splunk's dashboard
+   chrome, whose stylesheets also touch inputs. Scoped to .carbide-page
+   so nothing outside our pages is affected. */
+.carbide-page input::placeholder,
+.carbide-page textarea::placeholder,
 .carbide-input::placeholder {
-    color: #5a6470;
-    font-style: italic;
-    opacity: 1;
+    color: #5a6470 !important;
+    font-style: italic !important;
+    opacity: 1 !important;
 }
 /* the inline cell editor has a white background - darker muted gray there */
+.carbide-page .carbide-edit::placeholder,
 .carbide-edit::placeholder {
-    color: #9aa3ab;
-    font-style: italic;
-    opacity: 1;
+    color: #9aa3ab !important;
 }
 
 /* ------------------------------------------------------------- buttons */
@@ -256,7 +259,12 @@
 .carbide-toast-ok  { background: #2c7a3d; }
 .carbide-toast-err { background: #b6332b; }
 
-/* ------------------------------------------------------------- version tag */
+/* ------------------------------------------------------------- version tag
+ *
+ * The ::after content is this stylesheet's OWN version marker: the filter
+ * bar shows "ui v<js version> · css v<n>", so a stale CSS file is as
+ * visible as a stale JS file. Bump the number on every CSS change.
+ */
 
 .carbide-version {
     margin-left: auto;
@@ -264,6 +272,10 @@
     color: #5a6470;
     font-size: 11px;
     white-space: nowrap;
+}
+.carbide-version::after {
+    content: " · css v3";
+    color: #5a6470;
 }
 
 /* "Not watched" pseudo-status: deliberately quiet - it's the absence of

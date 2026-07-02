@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-02.10';
+    var VERSION = '2026-07-03.11';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -432,7 +432,7 @@
         CRITICAL:  { label: '✗ Missing + delayed', cls: 'critical' },
         MAINT:     { label: '🔧 Snoozed',     cls: 'maint' },
         OFF_HOURS: { label: '🌙 Off-hours',   cls: 'offhours' },
-        NEW:       { label: '· Just added',        cls: 'new' }
+        NEW:       { label: '⏳ Waiting for first check', cls: 'new' }
     };
 
     // Three UI axes over two KV collections: the sources collection is
@@ -602,7 +602,7 @@
                  { value: 'DOWN|CRITICAL', label: 'Missing (DOWN / CRITICAL)' },
                  { value: 'MAINT', label: 'Snoozed' },
                  { value: 'OFF_HOURS', label: 'Off-hours' },
-                 { value: 'NEW', label: 'Just added (watched, no snapshot yet)' },
+                 { value: 'NEW', label: 'Waiting for first check' },
                  { value: 'UNWATCHED', label: 'Not watched' }],
                 state.status, function (v) { state.status = v; render(); })));
             bar.appendChild(labeled('Search (contains)', textInput(state.search, 'entity, index, host, notes...', function (v) { state.search = v; render(); })));
