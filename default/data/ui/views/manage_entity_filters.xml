@@ -50,7 +50,8 @@
                         | inputlookup carbide_entity_filters_lookup
                         | search tracking_type="$filter_type_tok$" field_name="$filter_field_tok$"
                         | sort + tracking_type field_name mode pattern
-                        | table _key, tracking_type, field_name, mode, pattern, notes
+                        | eval kv_key = _key
+                        | table kv_key, tracking_type, field_name, mode, pattern, notes
                     </query>
                     </search>
                 <option name="drilldown">none</option>
@@ -100,9 +101,9 @@
         <panel>
             <title>Delete rule</title>
             <html>
-                <p>Paste a filter row's <code>_key</code> to remove it.</p>
+                <p>Paste a filter row's <code>kv_key</code> to remove it.</p>
                 <div class="carbide-delete-row">
-                    <input type="text" id="carbide_delete_key_filters" placeholder="_key to remove"
+                    <input type="text" id="carbide_delete_key_filters" placeholder="kv_key to remove"
                            data-carbide-collection="carbide_entity_filters"
                            data-carbide-delete-target="carbide_entity_filters_table" />
                     <button id="carbide_delete_button_filters" class="btn btn-danger">Delete</button>

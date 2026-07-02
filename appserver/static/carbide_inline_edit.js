@@ -14,8 +14,13 @@
  *                                     duration syntax and preset selectors
  *                                     (e.g. "maintenance_from,maintenance_until")
  *
- * The table MUST include a column titled `_key` so we can address the row in
- * the KV store. We strip `_key` from the POSTed body since the URL carries it.
+ * The table MUST include a column titled `kv_key` (populated in SPL via
+ * `| eval kv_key = _key`) so we can address the row in the KV store. A raw
+ * `_key` column does NOT work: Splunk table visualizations never display
+ * fields whose names start with an underscore, so the column would be
+ * missing from the DOM (verified live 2026-07-02 — every table silently
+ * lost its editability). We strip `_key` from the POSTed body since the
+ * URL carries it.
  *
  * Audit logging:
  *   Splunk auto-records every REST API call in index=_audit, including KV
@@ -286,7 +291,8 @@ require([
         // Apply friendly labels + show/hide detail columns.
         applyLabelsAndDetailVisibility($table, meta, currentShowDetails());
 
-        var keyCol = colIndex['_key'];
+        var keyCol = colIndex['kv_key'];
+        if (keyCol === undefined) keyCol = colIndex['_key'];
         if (keyCol === undefined) return;
 
         $table.find('tbody tr').each(function (_rowIdx, tr) {
@@ -403,7 +409,7 @@ require([
         var keyCol;
         $table.find('table thead th').each(function (i, th) {
             var name = $(th).attr('data-carbide-original') || $(th).text().trim();
-            if (name === '_key') keyCol = i;
+            if (name === 'kv_key' || (name === '_key' && keyCol === undefined)) keyCol = i;
         });
         if (keyCol === undefined) return [];
         var keys = [];
@@ -525,7 +531,7 @@ require([
             fetchAllRows(targetId).then(function (rows) {
                 kvBulkPatch({
                     collection: collection,
-                    keys:       rows.map(function (r) { return r._key; }).filter(Boolean),
+                    keys:       rows.map(function (r) { return r.kv_key || r._key; }).filter(Boolean),
                     mutator:    function (doc) { doc[field] = resolved; },
                     confirmMsg: 'Set ' + field + ' = ' + resolved + ' on {n} rows ?',
                     button:     $btn,
@@ -565,7 +571,7 @@ require([
             fetchAllRows(targetId).then(function (rows) {
                 kvBulkPatch({
                     collection: collection,
-                    keys:       rows.map(function (r) { return r._key; }).filter(Boolean),
+                    keys:       rows.map(function (r) { return r.kv_key || r._key; }).filter(Boolean),
                     mutator:    function (doc) { doc[field] = resolved; },
                     confirmMsg: confirmMsg || ('Set ' + field + ' on {n} rows ?'),
                     button:     $btn,
@@ -593,8 +599,9 @@ require([
             fetchAllRows(targetId).then(function (rows) {
                 var pairs = [];
                 rows.forEach(function (r) {
+                    var k = r.kv_key || r._key;
                     var v = Number(r[sourceCol]);
-                    if (r._key && !isNaN(v) && v > 0) pairs.push({ _key: r._key, value: v });
+                    if (k && !isNaN(v) && v > 0) pairs.push({ _key: k, value: v });
                 });
                 if (!pairs.length) { toast('no valid rows in view (missing ' + sourceCol + '?)', 'err'); return; }
 

@@ -32,12 +32,12 @@
             <default>.*</default>
         </input>
         <input type="text" token="search_tok" searchWhenChanged="true">
-            <label>Search</label>
-            <default>.*</default>
+            <label>Search (contains)</label>
+            <default></default>
         </input>
         <input type="text" token="tag_tok" searchWhenChanged="true">
-            <label>Tag</label>
-            <default>.*</default>
+            <label>Tag (contains)</label>
+            <default></default>
         </input>
         <input type="dropdown" token="show_details" searchWhenChanged="true">
             <label>Show details</label>
@@ -49,8 +49,8 @@
 
     <row>
         <panel>
-            <html>
-                <div class="carbide-quick" depends="$is_host$">
+            <html depends="$is_host$">
+                <div class="carbide-quick">
                     <strong>Quick actions on filtered rows</strong>
                     <button class="carbide-quick-btn"
                             data-carbide-target="carbide_tracked_hosts_table"
@@ -103,7 +103,9 @@
                             data-carbide-value="business_hours"
                             data-carbide-confirm="Set schedule = business hours on {n} rows?">📅 Business hrs</button>
                 </div>
-                <div class="carbide-quick" depends="$is_source$">
+            </html>
+            <html depends="$is_source$">
+                <div class="carbide-quick">
                     <strong>Quick actions on filtered rows</strong>
                     <button class="carbide-quick-btn"
                             data-carbide-target="carbide_tracked_sources_table"
@@ -182,7 +184,7 @@
                    data-carbide-label-tracking_mode="Grouped by"
                    data-carbide-label-tags="Tags"
                    data-carbide-label-entity_key="Entity"
-                   data-carbide-detail-cols="_key,entity_key,tracking_mode,notes,first seen,last updated">
+                   data-carbide-detail-cols="kv_key,entity_key,tracking_mode,notes,first seen,last updated">
                 <search>
                     <progress>
                         <condition match="'job.resultCount' == 0">
@@ -194,8 +196,8 @@
                     </progress>
                     <query>
                         | inputlookup carbide_tracked_hosts_lookup
-                        | where match(coalesce(entity_key,"")."|".coalesce(index,"")."|".coalesce(host,"")."|".coalesce(source,"")."|".coalesce(sourcetype,"")."|".coalesce(notes,""), "$search_tok$")
-                        | where match(coalesce(tags,""), "$tag_tok$")
+                        | where like(lower(coalesce(entity_key,"")."|".coalesce(index,"")."|".coalesce(host,"")."|".coalesce(source,"")."|".coalesce(sourcetype,"")."|".coalesce(notes,"")), lower("%$search_tok$%"))
+                        | where like(lower(coalesce(tags,"")), lower("%$tag_tok$%"))
                         | search monitored="$monitored_tok$"
                         | eval status        = coalesce(last_status, "NEW")
                         | where match(status, "^($status_tok$)$")
@@ -208,7 +210,8 @@
                         | eval tags                = coalesce(tags, "")
                         | eval monitoring_schedule = coalesce(monitoring_schedule, "247")
                         | sort + entity_key
-                        | table _key, status_h, monitored, entity_key, monitoring_schedule, tags,
+                        | eval kv_key = _key
+                        | table kv_key, status_h, monitored, entity_key, monitoring_schedule, tags,
                                 max_gap_seconds, max_latency_seconds,
                                 maintenance_from, maintenance_from_h, maintenance_until, maintenance_until_h,
                                 last_event_h, tracking_mode, first_seen_h, last_updated_h, notes
@@ -267,7 +270,7 @@
                    data-carbide-label-tracking_mode="Grouped by"
                    data-carbide-label-tags="Tags"
                    data-carbide-label-entity_key="Entity"
-                   data-carbide-detail-cols="_key,entity_key,tracking_mode,notes,first seen,last updated">
+                   data-carbide-detail-cols="kv_key,entity_key,tracking_mode,notes,first seen,last updated">
                 <search>
                     <progress>
                         <condition match="'job.resultCount' == 0">
@@ -279,8 +282,8 @@
                     </progress>
                     <query>
                         | inputlookup carbide_tracked_sources_lookup
-                        | where match(coalesce(entity_key,"")."|".coalesce(index,"")."|".coalesce(source,"")."|".coalesce(sourcetype,"")."|".coalesce(notes,""), "$search_tok$")
-                        | where match(coalesce(tags,""), "$tag_tok$")
+                        | where like(lower(coalesce(entity_key,"")."|".coalesce(index,"")."|".coalesce(source,"")."|".coalesce(sourcetype,"")."|".coalesce(notes,"")), lower("%$search_tok$%"))
+                        | where like(lower(coalesce(tags,"")), lower("%$tag_tok$%"))
                         | search monitored="$monitored_tok$"
                         | eval status        = coalesce(last_status, "NEW")
                         | where match(status, "^($status_tok$)$")
@@ -293,7 +296,8 @@
                         | eval tags                = coalesce(tags, "")
                         | eval monitoring_schedule = coalesce(monitoring_schedule, "247")
                         | sort + entity_key
-                        | table _key, status_h, monitored, entity_key, monitoring_schedule, tags,
+                        | eval kv_key = _key
+                        | table kv_key, status_h, monitored, entity_key, monitoring_schedule, tags,
                                 max_gap_seconds, max_latency_seconds,
                                 maintenance_from, maintenance_from_h, maintenance_until, maintenance_until_h,
                                 last_event_h, tracking_mode, first_seen_h, last_updated_h, notes
@@ -333,11 +337,10 @@
     <row>
         <panel>
             <title>Advanced: bulk action (single field, free-form value)</title>
-            <html>
+            <html depends="$is_host$">
                 <div class="carbide-bulk" id="carbide_bulk_hosts"
                      data-carbide-bulk-target="carbide_tracked_hosts_table"
-                     data-carbide-collection="carbide_tracked_hosts"
-                     depends="$is_host$">
+                     data-carbide-collection="carbide_tracked_hosts">
                     <strong>Bulk (hosts):</strong>
                     <label>field
                         <select class="carbide-bulk-field">
@@ -356,10 +359,11 @@
                     <button class="btn btn-primary carbide-bulk-apply">Apply to filtered</button>
                     <span class="carbide-bulk-count"></span>
                 </div>
+            </html>
+            <html depends="$is_source$">
                 <div class="carbide-bulk" id="carbide_bulk_sources"
                      data-carbide-bulk-target="carbide_tracked_sources_table"
-                     data-carbide-collection="carbide_tracked_sources"
-                     depends="$is_source$">
+                     data-carbide-collection="carbide_tracked_sources">
                     <strong>Bulk (sources):</strong>
                     <label>field
                         <select class="carbide-bulk-field">
@@ -386,15 +390,19 @@
         <panel>
             <title>Delete entity</title>
             <html>
-                <p style="color:#b8bec5;font-size:13px;">Paste an entity's <code>_key</code> (visible when "Show details" is on) to remove it from Carbide's tracking. Data ingestion is unaffected.</p>
-                <div class="carbide-delete-row" depends="$is_host$">
-                    <input type="text" id="carbide_delete_key" placeholder="_key to remove"
+                <p style="color:#b8bec5;font-size:13px;">Paste an entity's <code>kv_key</code> (visible when "Show details" is on) to remove it from Carbide's tracking. Data ingestion is unaffected.</p>
+            </html>
+            <html depends="$is_host$">
+                <div class="carbide-delete-row">
+                    <input type="text" id="carbide_delete_key" placeholder="kv_key to remove"
                            data-carbide-collection="carbide_tracked_hosts"
                            data-carbide-delete-target="carbide_tracked_hosts_table" />
                     <button id="carbide_delete_button" class="btn btn-danger">Delete (host)</button>
                 </div>
-                <div class="carbide-delete-row" depends="$is_source$">
-                    <input type="text" id="carbide_delete_key_sources" placeholder="_key to remove"
+            </html>
+            <html depends="$is_source$">
+                <div class="carbide-delete-row">
+                    <input type="text" id="carbide_delete_key_sources" placeholder="kv_key to remove"
                            data-carbide-collection="carbide_tracked_sources"
                            data-carbide-delete-target="carbide_tracked_sources_table" />
                     <button id="carbide_delete_button_sources" class="btn btn-danger">Delete (source)</button>

@@ -136,9 +136,7 @@
                         | sort - _time
                         | head 200
                         | table _time, user, action, collection, kv_key, status, uri_path
-                        | rename
-                            kv_key as "_key",
-                            uri_path as "URI"
+                        | rename uri_path as "URI"
                     </query>
                     <earliest>$audit_time_tok.earliest$</earliest>
                     <latest>$audit_time_tok.latest$</latest>

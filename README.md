@@ -42,7 +42,8 @@ about the things TrackMe makes complicated:
   `maintenance_until` so you can also schedule a window for the future
   (`+15min` / `+1h` / `+1d` / ...).
 - **Tags per entity** for ad-hoc grouping ("prod", "payments-team",
-  "vendor:zscaler"). All dashboards filter on a tag regex.
+  "vendor:zscaler"). All dashboards filter on a case-insensitive
+  "contains" match — same for the free-text entity search boxes.
 - **Threshold suggestions** dashboard: 7-day P95 latency × 1.5 and
   average interval × 5 are proposed per entity; "Apply suggested ... to
   filtered rows" pushes the proposals to every row matching the current

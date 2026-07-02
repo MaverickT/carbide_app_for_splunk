@@ -4,8 +4,8 @@
 
     <fieldset submitButton="false" autoRun="true">
         <input type="text" token="asset_search_tok" searchWhenChanged="true">
-            <label>Search (regex on host)</label>
-            <default>.*</default>
+            <label>Search host (contains)</label>
+            <default></default>
         </input>
         <input type="dropdown" token="asset_crit_tok" searchWhenChanged="true">
             <label>Criticality</label>
@@ -49,9 +49,10 @@
                     <query>
                         | inputlookup carbide_assets_lookup
                         | search criticality="$asset_crit_tok$"
-                        | where match(coalesce(host,""), "$asset_search_tok$")
+                        | where like(lower(coalesce(host,"")), lower("%$asset_search_tok$%"))
                         | sort + host
-                        | table _key, host, criticality, owner, business_unit, source, notes
+                        | eval kv_key = _key
+                        | table kv_key, host, criticality, owner, business_unit, source, notes
                     </query>
                     </search>
                 <option name="drilldown">none</option>
@@ -112,9 +113,9 @@
         <panel>
             <title>Delete asset</title>
             <html>
-                <p style="color:#b8bec5;font-size:13px;">Paste an asset row's <code>_key</code> to remove it.</p>
+                <p style="color:#b8bec5;font-size:13px;">Paste an asset row's <code>kv_key</code> to remove it.</p>
                 <div class="carbide-delete-row">
-                    <input type="text" id="carbide_delete_key_assets" placeholder="_key to remove"
+                    <input type="text" id="carbide_delete_key_assets" placeholder="kv_key to remove"
                            data-carbide-collection="carbide_assets"
                            data-carbide-delete-target="carbide_assets_table" />
                     <button id="carbide_delete_button_assets" class="btn btn-danger">Delete asset</button>

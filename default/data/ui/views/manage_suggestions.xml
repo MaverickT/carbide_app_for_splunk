@@ -10,8 +10,8 @@
             <default>diff</default>
         </input>
         <input type="text" token="search_tok" searchWhenChanged="true">
-            <label>Filter (regex)</label>
-            <default>.*</default>
+            <label>Filter (contains)</label>
+            <default></default>
         </input>
     </fieldset>
 
@@ -34,12 +34,13 @@
                 <search>
                     <query>
                         | `carbide_threshold_suggestions_hosts`
-                        | where match(coalesce(entity_key,""), "$search_tok$")
+                        | where like(lower(coalesce(entity_key,"")), lower("%$search_tok$%"))
                         | where if("$delta_tok$"="all", 1=1, abs(coalesce(delta_max_latency,0))/coalesce(current_max_latency,1) &gt; 0.1 OR abs(coalesce(delta_max_gap,0))/coalesce(current_max_gap,1) &gt; 0.1)
                         | sort + entity_key
                         | eval p95_latency = round(p95_latency, 1)
                         | eval avg_interval = round(avg_interval, 1)
-                        | table _key, entity_key,
+                        | eval kv_key = _key
+                        | table kv_key, entity_key,
                                 current_max_latency, suggested_max_latency, delta_max_latency,
                                 current_max_gap, suggested_max_gap, delta_max_gap,
                                 event_count, p95_latency, avg_interval
@@ -92,12 +93,13 @@
                 <search>
                     <query>
                         | `carbide_threshold_suggestions_sources`
-                        | where match(coalesce(entity_key,""), "$search_tok$")
+                        | where like(lower(coalesce(entity_key,"")), lower("%$search_tok$%"))
                         | where if("$delta_tok$"="all", 1=1, abs(coalesce(delta_max_latency,0))/coalesce(current_max_latency,1) &gt; 0.1 OR abs(coalesce(delta_max_gap,0))/coalesce(current_max_gap,1) &gt; 0.1)
                         | sort + entity_key
                         | eval p95_latency = round(p95_latency, 1)
                         | eval avg_interval = round(avg_interval, 1)
-                        | table _key, entity_key,
+                        | eval kv_key = _key
+                        | table kv_key, entity_key,
                                 current_max_latency, suggested_max_latency, delta_max_latency,
                                 current_max_gap, suggested_max_gap, delta_max_gap,
                                 event_count, p95_latency, avg_interval

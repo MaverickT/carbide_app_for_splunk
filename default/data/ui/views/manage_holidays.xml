@@ -4,8 +4,8 @@
 
     <fieldset submitButton="false" autoRun="true">
         <input type="text" token="hol_search_tok" searchWhenChanged="true">
-            <label>Search (regex on date or name)</label>
-            <default>.*</default>
+            <label>Search (contains)</label>
+            <default></default>
         </input>
         <input type="dropdown" token="hol_recurring_tok" searchWhenChanged="true">
             <label>Type</label>
@@ -47,9 +47,10 @@
                     <query>
                         | inputlookup carbide_holidays_lookup
                         | search recurring="$hol_recurring_tok$"
-                        | where match(coalesce(date,"") . " " . coalesce(name,""), "$hol_search_tok$")
+                        | where like(lower(coalesce(date,"") . " " . coalesce(name,"")), lower("%$hol_search_tok$%"))
                         | sort + date
-                        | table _key, date, name, recurring, notes
+                        | eval kv_key = _key
+                        | table kv_key, date, name, recurring, notes
                     </query>
                     </search>
                 <option name="drilldown">none</option>
@@ -89,9 +90,9 @@
         <panel>
             <title>Delete holiday</title>
             <html>
-                <p style="color:#b8bec5;font-size:13px;">Paste a holiday row's <code>_key</code> to remove it.</p>
+                <p style="color:#b8bec5;font-size:13px;">Paste a holiday row's <code>kv_key</code> to remove it.</p>
                 <div class="carbide-delete-row">
-                    <input type="text" id="carbide_delete_key_holidays" placeholder="_key to remove"
+                    <input type="text" id="carbide_delete_key_holidays" placeholder="kv_key to remove"
                            data-carbide-collection="carbide_holidays"
                            data-carbide-delete-target="carbide_holidays_table" />
                     <button id="carbide_delete_button_holidays" class="btn btn-danger">Delete holiday</button>
