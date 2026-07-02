@@ -25,6 +25,12 @@
     var BASE = location.pathname.split('/app/')[0]; // e.g. "/en-US"
     var CHUNK = 200;
 
+    // Bump on every change. Rendered in the filter bar + logged to the
+    // console so "is the server/browser serving a stale copy?" is a
+    // one-glance check instead of a debugging session.
+    var VERSION = '2026-07-02.7';
+    try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
+
     // ------------------------------------------------------------- REST
 
     function csrfToken() {
@@ -212,6 +218,12 @@
         var b = el('button', 'carbide-btn' + (cls ? ' ' + cls : ''), label);
         b.addEventListener('click', onclick);
         return b;
+    }
+
+    function versionTag() {
+        var v = el('span', 'carbide-version', 'ui v' + VERSION);
+        v.title = 'Version of carbide_manage.js the browser is running. If this lags the deployed file, run /_bump and hard-refresh.';
+        return v;
     }
 
     // ------------------------------------------------------------- generic table
@@ -574,6 +586,7 @@
                 [{ value: '0', label: 'No' }, { value: '1', label: 'Yes' }],
                 state.details ? '1' : '0', function (v) { state.details = v === '1'; render(); })));
             bar.appendChild(btn('↻ Refresh', null, load));
+            bar.appendChild(versionTag());
             root.appendChild(bar);
 
             var pool = filtered();
@@ -698,6 +711,7 @@
             var bar = el('div', 'carbide-filters');
             bar.appendChild(labeled('Search (contains)', textInput(state.search, '', function (v) { state.search = v; render(); })));
             bar.appendChild(btn('↻ Refresh', null, load));
+            bar.appendChild(versionTag());
             root.appendChild(bar);
 
             // add form
@@ -950,6 +964,7 @@
                 state.onlyDiff ? 'diff' : 'all', function (v) { state.onlyDiff = v === 'diff'; render(); })));
             bar.appendChild(labeled('Filter (contains)', textInput(state.search, 'entity...', function (v) { state.search = v; render(); })));
             bar.appendChild(btn('↻ Recompute', null, load));
+            bar.appendChild(versionTag());
             root.appendChild(bar);
 
             if (!state.loaded) {

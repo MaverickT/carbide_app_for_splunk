@@ -240,3 +240,13 @@
 .carbide-toast.gone { opacity: 0; }
 .carbide-toast-ok  { background: #2c7a3d; }
 .carbide-toast-err { background: #b6332b; }
+
+/* ------------------------------------------------------------- version tag */
+
+.carbide-version {
+    margin-left: auto;
+    align-self: center;
+    color: #5a6470;
+    font-size: 11px;
+    white-space: nowrap;
+}
