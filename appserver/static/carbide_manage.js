@@ -151,6 +151,29 @@
         return String(hay == null ? '' : hay).toLowerCase().indexOf(needle) >= 0;
     }
 
+    var DUR_UNITS = { s: 1, m: 60, h: 3600, d: 86400, w: 604800 };
+
+    // "7h" / "90m" / "1.5d" / "1w" / "300" (bare number = seconds) -> seconds.
+    // Returns null on anything it can't parse.
+    function parseDuration(input) {
+        var s = String(input == null ? '' : input).trim().toLowerCase();
+        var m = /^(\d+(?:\.\d+)?)\s*(s|m|h|d|w)?$/.exec(s);
+        if (!m) return null;
+        return Math.round(parseFloat(m[1]) * DUR_UNITS[m[2] || 's']);
+    }
+
+    // Seconds -> the shortest exact human form ("3600" -> "1h",
+    // "5400" -> "90m", "90" -> "90s") for pre-filling duration editors.
+    function humanShort(secs) {
+        var n = Number(secs) || 0;
+        if (n <= 0) return '0s';
+        var units = [['w', 604800], ['d', 86400], ['h', 3600], ['m', 60]];
+        for (var i = 0; i < units.length; i++) {
+            if (n % units[i][1] === 0) return (n / units[i][1]) + units[i][0];
+        }
+        return n + 's';
+    }
+
     function labeled(labelText, control) {
         var w = el('label', 'carbide-f');
         w.appendChild(el('span', 'carbide-f-label', labelText));
@@ -326,6 +349,11 @@
         } else if (kind === 'snooze') {
             input = select(SNOOZE_PRESETS.map(function (p) { return { value: String(p.secs), label: p.label }; }));
             input.className = 'carbide-edit';
+        } else if (kind === 'duration') {
+            input = el('input', 'carbide-edit');
+            input.type = 'text';
+            input.placeholder = 'e.g. 15m, 7h, 1d, 1w';
+            input.value = humanShort(row[col.key]);
         } else {
             input = el('input', 'carbide-edit');
             input.type = kind === 'number' ? 'number' : 'text';
@@ -346,6 +374,13 @@
             if (kind === 'snooze') {
                 var secs = Number(input.value);
                 v = secs === 0 ? 0 : now() + secs;
+            } else if (kind === 'duration') {
+                v = parseDuration(input.value);
+                if (v === null || v < 0) {
+                    toast(col.label + ': use a duration like 90s, 15m, 7h, 1d or 1w', 'err');
+                    onEdit(null);
+                    return;
+                }
             } else if (kind === 'number') {
                 v = Number(input.value);
                 if (isNaN(v) || (col.edit.min !== undefined && v < col.edit.min)) {
@@ -493,12 +528,12 @@
                 { key: 'monitoring_schedule', label: 'Schedule', edit: { type: 'select', options: ['247', 'weekdays', 'business_hours'] },
                   render: function (r) { return r.monitoring_schedule || '247'; } },
                 { key: 'tags',                label: 'Tags', edit: { type: 'text' } },
-                { key: 'max_gap_seconds',     label: 'Alert if quiet for', edit: { type: 'number', min: 0 },
+                { key: 'max_gap_seconds',     label: 'Alert if quiet for', edit: { type: 'duration' },
                   render: function (r) { return fmtDur(r.max_gap_seconds); },
-                  title: function (r) { return (r.max_gap_seconds || 0) + ' s'; } },
-                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'number', min: 0 },
+                  title: function (r) { return (r.max_gap_seconds || 0) + ' s - click to edit (15m, 7h, 1d, 1w...)'; } },
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' },
                   render: function (r) { return fmtDur(r.max_latency_seconds); },
-                  title: function (r) { return (r.max_latency_seconds || 0) + ' s'; } },
+                  title: function (r) { return (r.max_latency_seconds || 0) + ' s - click to edit (15m, 7h, 1d, 1w...)'; } },
                 { key: 'maintenance_until',   label: 'Snoozed until', edit: { type: 'snooze' },
                   render: function (r) { return fmtUntil(r.maintenance_until); },
                   title: function (r) { return fmtTs(r.maintenance_until); } },
