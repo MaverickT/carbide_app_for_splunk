@@ -12,17 +12,17 @@ required.
 2. **Open** the app — you'll land on a 3-step Welcome page.
 3. **Run discovery once.** In Settings > Searches, run
    *Carbide - Discover hosts (recommended)* and
-   *Carbide - Discover sources (recommended)*.
+   *Carbide - Discover sourcetypes (recommended)*.
 4. **Pick what to watch.** Open *Manage entities*, filter on what
    matters, click **Start watching** in the quick actions row.
 5. **Wait one cycle (5 min)** and refresh the Home page — health is
    live, alerts are armed. Wire alert actions in Settings > Searches
-   on the four alert saved searches when you're ready.
+   on the two alert saved searches (Hosts, Sources) when you're ready.
 
 That's it. Everything else below is reference. New to the operator
-mental model? Open Home → Manage entities → Alerts. The Advanced menu
-holds entity filters, threshold suggestions, history, and settings
-for when you need them.
+mental model? Open Home → Manage entities → Alerts. The Manage menu
+holds assets, holidays, entity filters and threshold suggestions;
+Trends and Settings sit alongside.
 
 Carbide is opinionated about the things TrackMe gets right and quick
 about the things TrackMe makes complicated:
@@ -45,8 +45,8 @@ about the things TrackMe makes complicated:
   "vendor:zscaler"). All dashboards filter on a tag regex.
 - **Threshold suggestions** dashboard: 7-day P95 latency × 1.5 and
   average interval × 5 are proposed per entity; "Apply suggested ... to
-  visible" pushes the proposals to every visible row in one batched
-  write.
+  filtered rows" pushes the proposals to every row matching the current
+  filter in chunked batch writes.
 - **Two alerts (Hosts, Sources)** with notable severity/urgency derived
   per-result from `asset_criticality` (manage assets) — `medium`
   fallback for unmapped hosts and all sources. ES notable + email
@@ -65,7 +65,6 @@ about the things TrackMe makes complicated:
   also gated on (status changed OR `last_event_time` advanced). A
   cheap hourly heartbeat for non-OK entities keeps trending queries
   anchored.
-- **Audit trail** of every inline edit (`sourcetype="carbide:audit"`).
 - **Self-test panel** verifies every collection, the entity-filter
   macro, the dedicated index and the saved searches in one glance.
 - **Alerts** for DOWN / LATE / CRITICAL ship with sensible suppression.
@@ -101,18 +100,19 @@ exists.
 Restart Splunk (KV-store collections register on first load). On the
 search head, open the **Carbide for Splunk** app and:
 
-1. Open **Settings** and adjust defaults if you want different
-   bootstrap thresholds. Values stored here override the
-   `carbide_default_*` macros at discovery time.
+1. Optionally adjust the bootstrap defaults for newly discovered
+   entities by editing the `carbide_default_*` search macros
+   (Settings > Advanced search > Search macros — the app's Settings
+   page documents each key).
 2. Optionally open **Manage > Entity Filters** and add include/exclude
    rules. Defaults shipped via seed CSV exclude internal/summary/history
-   indexes and whitelist a couple of stable syslog source paths.
-3. Let the **Discover Hosts (host_sourcetype)** and **Discover Sources
-   (index_sourcetype)** searches run once each (they're scheduled
-   hourly and also runnable on demand from the Searches & Reports UI).
-4. Open **Manage > Hosts** / **Manage > Sources** and flip
-   `monitored = 1` on the entities you actually want Carbide to watch.
-   Use the bulk-action toolbar to do it for many at once.
+   indexes and summary-indexing artifacts.
+3. Let the **Discover hosts (index_host)** and **Discover sourcetypes
+   (index_sourcetype)** searches run once each (they're scheduled every
+   4 hours and also runnable on demand from the Searches & Reports UI).
+4. Open **Manage entities** and flip *Watching* on for the entities you
+   actually want Carbide to watch. Use the bulk-action toolbar to do it
+   for many at once.
 
 ## Scheduled monitoring (workweek / business hours / holidays)
 
@@ -141,12 +141,13 @@ Set the per-entity schedule via the **Schedule** column in
 `📅 24/7` / `📅 Weekdays` / `📅 Business hrs` to every row matching the
 current filter.
 
-Configure the global business-hours window in *Advanced > Settings*:
+Configure the global business-hours window via the `carbide_default_*`
+search macros (Settings > Advanced search > Search macros):
 
-- `business_hours_start` — HHMM as a number, default `800`.
-- `business_hours_end` — HHMM as a number, default `1600`.
-- `default_monitoring_schedule` — the preset newly discovered entities
-  receive (default `"247"`).
+- `carbide_default_business_hours_start` — HHMM as a number, default `800`.
+- `carbide_default_business_hours_end` — HHMM as a number, default `1600`.
+- `carbide_default_monitoring_schedule` — the preset newly discovered
+  entities receive (default `"247"`, quotes required).
 
 **Timezone**: Splunk's `strftime` doesn't accept a timezone argument, so
 all weekend / business-hours / holiday checks run in the dispatching
@@ -184,23 +185,28 @@ skip MAINT rows automatically. Use the bulk-action toolbar or
 Discovery searches for the non-default tracking modes ship `disabled=1`.
 Enable any of them from **Settings > Searches** when you need that axis:
 
-- `Carbide - Discover hosts (advanced: index and host)`
-- `Carbide - Discover hosts (advanced: host and source)`
-- `Carbide - Discover sources (advanced: index and source)`
+- `Carbide - Discover hosts (advanced: host and sourcetype)` — catches a
+  single sourcetype going quiet while the host keeps logging everything
+  else. More granular, more entities.
+- `Carbide - Discover hosts (advanced: host and source)` — per file path.
+- `Carbide - Discover sources (advanced: index and source)` — per file
+  path within an index.
 
 Default-enabled:
 
-- `Carbide - Discover hosts (recommended)`
-- `Carbide - Discover sources (recommended)`
+- `Carbide - Discover hosts (recommended)` — `index_host`: alerts when a
+  host stops reporting into an index.
+- `Carbide - Discover sourcetypes (recommended)` — `index_sourcetype`:
+  alerts when a sourcetype stops arriving in an index.
 
-`host_sourcetype` and `index_sourcetype` are the recommended primary
-modes for most deployments. The status macro fans every live tstats row
-out to all possible entity-key shapes, so opting into the other modes is
-mostly a configuration step — but it also triples the per-row fan-out
-during the mvexpand stage, which matters on very large fleets. If you
-only ever use `host_sourcetype`, you can shave the fan-out by editing
-`carbide_host_status` (Settings > Search macros) and removing `ek_ih`
-and `ek_hs` from the `mvappend` line.
+`index_host` and `index_sourcetype` are the recommended primary modes
+for most deployments. The status macro fans every live tstats row out to
+all possible entity-key shapes, so opting into the other modes is mostly
+a configuration step — but it also triples the per-row fan-out during
+the mvexpand stage, which matters on very large fleets. If you only ever
+use `index_host`, you can shave the fan-out by editing
+`carbide_host_status` (Settings > Search macros) and removing `ek_hs`
+and `ek_hst` from the `mvappend` line.
 
 ## What runs out of the box
 
@@ -208,7 +214,7 @@ and `ek_hs` from the `mvappend` line.
 |----------------------------------------------------|-------------|---------|
 | Carbide - Seed Entity Filters                      | hourly      | on      |
 | Carbide - Discover hosts (recommended)             | every 4 h   | on      |
-| Carbide - Discover sources (recommended)           | every 4 h   | on      |
+| Carbide - Discover sourcetypes (recommended)       | every 4 h   | on      |
 | Carbide - Status Snapshot: Hosts                   | every 5 min | on      |
 | Carbide - Status Snapshot: Sources                 | every 5 min | on      |
 | Carbide - Heartbeat: Non-OK entities               | hourly      | on      |
@@ -279,8 +285,9 @@ discovered entities) live in the `carbide_default_*` search macros —
 see the Settings dashboard for the list.
 
 Long-term trending is shipped to `` index=`carbide_index` `` (default
-`carbide`) with `sourcetype="carbide:status"`. Audit events for inline
-edits land in the same index with `sourcetype="carbide:audit"`.
+`carbide`) with `sourcetype="carbide:status"`. Inline-edit auditing
+comes from Splunk's built-in `splunkd_access` log (see Settings >
+Audit trail) — no app-side audit events.
 
 To change the destination index name:
 

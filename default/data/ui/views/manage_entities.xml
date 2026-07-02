@@ -324,7 +324,7 @@
             <html>
                 <div class="carbide-empty-state">
                     <h3>No source entities match the current filter</h3>
-                    <p>If you've just installed Carbide, run discovery first: <em>Carbide - Discover sources (recommended)</em> from Settings &#8250; Searches.</p>
+                    <p>If you've just installed Carbide, run discovery first: <em>Carbide - Discover sourcetypes (recommended)</em> from Settings &#8250; Searches.</p>
                 </div>
             </html>
         </panel>
