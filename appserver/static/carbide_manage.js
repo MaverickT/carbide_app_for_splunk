@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-02.7';
+    var VERSION = '2026-07-02.8';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -434,15 +434,25 @@
         NEW:       { label: '· Just added',        cls: 'new' }
     };
 
-    var ENT_COLLECTIONS = { host: 'carbide_tracked_hosts', source: 'carbide_tracked_sources' };
-    var TRACKING_MODES = { host: ['index_host', 'host_source', 'host_sourcetype'],
-                           source: ['index_source', 'index_sourcetype'] };
+    // Three UI axes over two KV collections: the sources collection is
+    // split by tracking_mode into "Sources (file paths)" and "Sourcetypes".
+    var ENT_AXES = {
+        host:       { collection: 'carbide_tracked_hosts',   noun: 'host',
+                      discoverHint: '"Carbide - Discover hosts (recommended)"' },
+        source:     { collection: 'carbide_tracked_sources', noun: 'source',
+                      modeFilter: function (r) { return r.tracking_mode !== 'index_sourcetype'; },
+                      discoverHint: '"Carbide - Discover sources (advanced: index and source)" (ships disabled - enable it first)' },
+        sourcetype: { collection: 'carbide_tracked_sources', noun: 'sourcetype',
+                      modeFilter: function (r) { return r.tracking_mode === 'index_sourcetype'; },
+                      discoverHint: '"Carbide - Discover sourcetypes (recommended)"' }
+    };
+    var HOST_TRACKING_MODES = ['index_host', 'host_source', 'host_sourcetype'];
 
     function entitiesPage() {
         var state = {
             axis: 'host',
-            rows: { host: [], source: [] },
-            selected: { host: new Set(), source: new Set() },
+            rows: { carbide_tracked_hosts: [], carbide_tracked_sources: [] },
+            selected: { host: new Set(), source: new Set(), sourcetype: new Set() },
             loaded: false,
             watching: '*', status: '*', search: '', tag: '',
             details: false,
@@ -451,11 +461,17 @@
 
         (function initFromQuery() {
             var q = new URLSearchParams(location.search);
-            var t = q.get('form.type_tok');   if (t === 'source' || t === 'host') state.axis = t;
+            var t = q.get('form.type_tok');   if (ENT_AXES[t]) state.axis = t;
             var s = q.get('form.status_tok'); if (s) state.status = s;
             var f = q.get('form.search_tok'); if (f) state.search = f;
             var g = q.get('form.tag_tok');    if (g) state.tag = g;
         })();
+
+        function axisRows() {
+            var a = ENT_AXES[state.axis];
+            var list = state.rows[a.collection];
+            return a.modeFilter ? list.filter(a.modeFilter) : list;
+        }
 
         function rowStatus(r) {
             var from = Number(r.maintenance_from) || 0;
@@ -468,7 +484,7 @@
             var needle = state.search.trim().toLowerCase();
             var tag = state.tag.trim().toLowerCase();
             var statuses = state.status === '*' ? null : state.status.split('|');
-            return state.rows[state.axis].filter(function (r) {
+            return axisRows().filter(function (r) {
                 if (state.watching !== '*' && String(Number(r.monitored) || 0) !== state.watching) return false;
                 if (statuses && statuses.indexOf(rowStatus(r)) < 0) return false;
                 if (tag && !contains(r.tags, tag)) return false;
@@ -490,7 +506,7 @@
             var row = change.row, prev = row[change.field];
             row[change.field] = change.value;
             row.last_updated = now();
-            kvSave(ENT_COLLECTIONS[state.axis], row).then(function () {
+            kvSave(ENT_AXES[state.axis].collection, row).then(function () {
                 toast(change.field + ' saved');
                 render();
             }).catch(function (e) {
@@ -511,7 +527,7 @@
             if (!confirm(verb + ' on ' + scope + '?')) return;
             var ts = now();
             rows.forEach(function (r) { mutator(r); r.last_updated = ts; });
-            batchSaveAll(ENT_COLLECTIONS[state.axis], rows).then(function () {
+            batchSaveAll(ENT_AXES[state.axis].collection, rows).then(function () {
                 toast(verb + ': ' + rows.length + ' rows updated');
                 render();
             }).catch(function (e) {
@@ -554,7 +570,8 @@
                 { key: 'last_event_time',     label: 'Last event', render: function (r) { return fmtTs(r.last_event_time); } },
                 { key: 'maintenance_from',    label: 'Snooze from', detail: true, edit: { type: 'snooze' },
                   render: function (r) { return Number(r.maintenance_from) ? fmtTs(r.maintenance_from) : '-'; } },
-                { key: 'tracking_mode',       label: 'Grouped by', detail: true, edit: { type: 'select', options: TRACKING_MODES[axis] } },
+                { key: 'tracking_mode',       label: 'Grouped by', detail: true,
+                  edit: axis === 'host' ? { type: 'select', options: HOST_TRACKING_MODES } : undefined },
                 { key: 'first_seen',          label: 'First seen', detail: true, render: function (r) { return fmtTs(r.first_seen); } },
                 { key: 'last_updated',        label: 'Last updated', detail: true, render: function (r) { return fmtTs(r.last_updated); } },
                 { key: 'notes',               label: 'Notes', detail: true, edit: { type: 'text' } }
@@ -566,7 +583,9 @@
 
             var bar = el('div', 'carbide-filters');
             bar.appendChild(labeled('I want to manage', select(
-                [{ value: 'host', label: 'Hosts' }, { value: 'source', label: 'Sources' }],
+                [{ value: 'host', label: 'Hosts' },
+                 { value: 'sourcetype', label: 'Sourcetypes' },
+                 { value: 'source', label: 'Sources (file paths)' }],
                 state.axis, function (v) { state.axis = v; render(); })));
             bar.appendChild(labeled('Watching', select(
                 [{ value: '*', label: 'All' }, { value: '1', label: 'On (watching)' }, { value: '0', label: 'Off (not watching)' }],
@@ -616,8 +635,8 @@
             root.appendChild(actions);
 
             root.appendChild(el('div', 'carbide-count',
-                pool.length + ' of ' + state.rows[state.axis].length + ' tracked ' +
-                (state.axis === 'host' ? 'host' : 'source') + ' entities' +
+                pool.length + ' of ' + axisRows().length + ' tracked ' +
+                ENT_AXES[state.axis].noun + ' entities' +
                 (selCount ? ' - ' + selCount + ' selected' : '') +
                 (state.loaded ? '' : ' (loading…)')));
 
@@ -637,8 +656,8 @@
                 },
                 onDelete: function (r) {
                     if (!confirm('Stop tracking ' + r.entity_key + ' ? (KV row is deleted; data ingestion unaffected)')) return;
-                    kvDelete(ENT_COLLECTIONS[state.axis], r._key).then(function () {
-                        var list = state.rows[state.axis];
+                    kvDelete(ENT_AXES[state.axis].collection, r._key).then(function () {
+                        var list = state.rows[ENT_AXES[state.axis].collection];
                         var i = list.indexOf(r);
                         if (i >= 0) list.splice(i, 1);
                         state.selected[state.axis].delete(r._key);
@@ -646,17 +665,17 @@
                         render();
                     }).catch(function (e) { toast('delete failed: ' + e.message, 'err'); });
                 },
-                emptyText: state.rows[state.axis].length
+                emptyText: axisRows().length
                     ? 'No entities match the current filter.'
-                    : 'Nothing tracked yet - run "Carbide - Discover hosts (recommended)" from Settings › Searches, then refresh.'
+                    : 'Nothing tracked on this axis yet - run ' + ENT_AXES[state.axis].discoverHint + ' from Settings › Searches, then refresh.'
             }));
         }
 
         function load() {
             state.loaded = false;
-            Promise.all([kvList(ENT_COLLECTIONS.host), kvList(ENT_COLLECTIONS.source)]).then(function (res) {
-                state.rows.host = res[0] || [];
-                state.rows.source = res[1] || [];
+            Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources')]).then(function (res) {
+                state.rows.carbide_tracked_hosts = res[0] || [];
+                state.rows.carbide_tracked_sources = res[1] || [];
                 state.loaded = true;
                 render();
             }).catch(function (e) {
@@ -981,7 +1000,9 @@
                     { key: 'entity_key', label: 'Entity',
                       render: function (r) {
                           var a = el('a', null, r.entity_key);
-                          a.href = 'manage_entities?form.type_tok=' + axis.id + '&form.search_tok=' + encodeURIComponent(r.entity_key || '');
+                          var target = axis.id;
+                          if (target === 'source' && String(r.entity_key || '').indexOf('|sourcetype=') >= 0) target = 'sourcetype';
+                          a.href = 'manage_entities?form.type_tok=' + target + '&form.search_tok=' + encodeURIComponent(r.entity_key || '');
                           return a;
                       } },
                     numCol('current_max_latency',   'Current latency (s)'),
