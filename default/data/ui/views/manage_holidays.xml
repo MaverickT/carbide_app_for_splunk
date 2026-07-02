@@ -1,103 +1,11 @@
-<form version="1.1" theme="dark" script="carbide_inline_edit.js" stylesheet="carbide.css">
+<?xml version="1.0"?>
+<!--
+  Custom HTML view: appserver/templates/manage_holidays.html bootstraps
+  appserver/static/carbide_manage.js (data-page="manage_holidays"), which talks to
+  the KV store REST API directly and owns rendering + inline editing.
+  Replaced the SimpleXML form 2026-07-02: Splunk 10.4 ignores
+  theme="dark" and its light-theme result tables were unreadable.
+-->
+<view template="carbide_app_for_splunk:/templates/manage_holidays.html" type="html">
     <label>Manage holidays</label>
-    <description>Global holiday calendar consulted whenever an entity is on the `weekdays` or `business_hours` schedule. On a holiday, the entity reports `🌙 Off-hours` and alerts/heartbeats skip it. Two date formats are supported: fixed dates (`YYYY-MM-DD`, `recurring=0`) match only that specific year; recurring annual holidays use `MM-DD` with `recurring=1` and apply every year.</description>
-
-    <fieldset submitButton="false" autoRun="true">
-        <input type="text" token="hol_search_tok" searchWhenChanged="true">
-            <label>Search (contains)</label>
-            <default></default>
-        </input>
-        <input type="dropdown" token="hol_recurring_tok" searchWhenChanged="true">
-            <label>Type</label>
-            <choice value="*">All</choice>
-            <choice value="1">Recurring (MM-DD)</choice>
-            <choice value="0">Fixed (YYYY-MM-DD)</choice>
-            <default>*</default>
-        </input>
-    </fieldset>
-
-    <row>
-        <panel>
-            <html>
-                <div class="carbide-toolbar">
-                    <div class="carbide-toolbar-info">
-                        <strong>Reminder:</strong> the holiday list is global. The search head's local timezone determines
-                        which calendar day is "today" for the holiday check (Splunk's <code>strftime</code> has no
-                        timezone argument — it uses the dispatching user's tz preference; for scheduled searches this
-                        defaults to the server tz). Empty calendar = no holidays = the schedule only respects weekends + clock hours.
-                    </div>
-                </div>
-            </html>
-        </panel>
-    </row>
-
-    <row>
-        <panel>
-            <title>Holidays</title>
-            <table id="carbide_holidays_table"
-                   data-carbide-collection="carbide_holidays"
-                   data-carbide-editable="date,name,recurring,notes"
-                   data-carbide-numeric="recurring"
-                   data-carbide-options-recurring="0,1"
-                   data-carbide-label-date="Date"
-                   data-carbide-label-name="Name"
-                   data-carbide-label-recurring="Recurring (1) / fixed (0)"
-                   data-carbide-label-notes="Notes">
-                <search>
-                    <query>
-                        | inputlookup carbide_holidays_lookup
-                        | search recurring="$hol_recurring_tok$"
-                        | where like(lower(coalesce(date,"") . " " . coalesce(name,"")), lower("%$hol_search_tok$%"))
-                        | sort + date
-                        | eval kv_key = _key
-                        | table kv_key, date, name, recurring, notes
-                    </query>
-                    </search>
-                <option name="drilldown">none</option>
-                <option name="count">200</option>
-            </table>
-        </panel>
-    </row>
-
-    <row>
-        <panel>
-            <title>Add holiday</title>
-            <html>
-                <div class="carbide-form">
-                    <label>Date <input type="text" id="carbide_new_holiday_date" placeholder="2026-12-25 or 12-25" /></label>
-                    <label>Name <input type="text" id="carbide_new_holiday_name" placeholder="Christmas" /></label>
-                    <label>Recurring
-                        <select id="carbide_new_holiday_recurring">
-                            <option value="0">No (fixed date YYYY-MM-DD)</option>
-                            <option value="1">Yes (annual MM-DD)</option>
-                        </select>
-                    </label>
-                    <label>Notes <input type="text" id="carbide_new_holiday_notes" placeholder="optional" /></label>
-                    <button id="carbide_add_holiday"
-                            class="btn btn-primary"
-                            data-carbide-collection="carbide_holidays"
-                            data-carbide-target="carbide_holidays_table">Add holiday</button>
-                </div>
-                <p style="color:#7a8590;font-size:12px;margin-top:6px;">
-                    Tip: enter <code>02-29</code> with recurring = Yes to flag leap-day in leap years only; entering
-                    <code>2028-02-29</code> with recurring = No applies in 2028 only.
-                </p>
-            </html>
-        </panel>
-    </row>
-
-    <row>
-        <panel>
-            <title>Delete holiday</title>
-            <html>
-                <p style="color:#b8bec5;font-size:13px;">Paste a holiday row's <code>kv_key</code> to remove it.</p>
-                <div class="carbide-delete-row">
-                    <input type="text" id="carbide_delete_key_holidays" placeholder="kv_key to remove"
-                           data-carbide-collection="carbide_holidays"
-                           data-carbide-delete-target="carbide_holidays_table" />
-                    <button id="carbide_delete_button_holidays" class="btn btn-danger">Delete holiday</button>
-                </div>
-            </html>
-        </panel>
-    </row>
-</form>
+</view>

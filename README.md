@@ -24,8 +24,7 @@ mental model? Open Home → Manage entities → Alerts. The Manage menu
 holds assets, holidays, entity filters and threshold suggestions;
 Trends and Settings sit alongside.
 
-Carbide is opinionated about the things TrackMe gets right and quick
-about the things TrackMe makes complicated:
+Carbide is deliberately small and opinionated:
 
 - **Two tracking methods**: HOST entities (`index+host` / `host+source` /
   `host+sourcetype`) and SOURCE entities (`index+source` /
@@ -426,24 +425,29 @@ carbide_app_for_splunk/
 │   ├── tags.conf
 │   ├── props.conf             carbide:status sourcetype parsing
 │   ├── indexes.conf           Dedicated `carbide` index (install on indexers)
-│   └── data/
-│       ├── lookups/
-│       │   └── carbide_entity_filters_seed.csv
-│       └── ui/
-│           ├── nav/default.xml
-│           └── views/
-│               ├── home.xml
-│               ├── manage_entities.xml
-│               ├── manage_assets.xml
-│               ├── manage_holidays.xml
-│               ├── manage_entity_filters.xml
-│               ├── manage_suggestions.xml
-│               ├── settings.xml
-│               ├── trends.xml
-│               └── alerts.xml
-├── appserver/static/
-│   ├── carbide_inline_edit.js Inline editor + bulk actions + audit
-│   └── carbide.css
+│   └── data/ui/
+│       ├── nav/default.xml
+│       └── views/
+│           ├── home.xml               SimpleXML
+│           ├── manage_entities.xml    HTML template views: the five
+│           ├── manage_assets.xml      Manage pages render via
+│           ├── manage_holidays.xml    appserver/templates/<view>.html
+│           ├── manage_entity_filters.xml
+│           ├── manage_suggestions.xml
+│           ├── settings.xml           SimpleXML
+│           ├── trends.xml             SimpleXML
+│           └── alerts.xml             SimpleXML
+├── lookups/
+│   ├── carbide_entity_filters_seed.csv
+│   └── carbide_holidays_seed.csv
+├── appserver/
+│   ├── templates/                 One per Manage view; each bootstraps
+│   │   └── manage_*.html          carbide_manage.js with data-page=<view>
+│   └── static/
+│       ├── carbide_manage.js      Manage pages: KV REST client, tables,
+│       │                          inline editing, checkbox bulk actions
+│       ├── carbide_manage.css     Dark styling for the Manage pages
+│       └── carbide.css            Styling for the SimpleXML dashboards
 ├── static/
 │   └── README_icons.txt       Where to drop appIcon*.png for Splunkbase
 ├── metadata/default.meta

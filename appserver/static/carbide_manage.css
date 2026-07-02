@@ -1,0 +1,242 @@
+/*
+ * Carbide for Splunk - custom HTML views (Manage entities pilot)
+ * Everything scoped under .carbide-page; we own the whole DOM here,
+ * so no !important fights with Splunk's theme.
+ */
+
+.carbide-page {
+    background: #0c1014;
+    color: #b8bec5;
+    min-height: calc(100vh - 80px);
+    padding: 18px 24px;
+    font-size: 13px;
+}
+
+.carbide-loading,
+.carbide-error {
+    padding: 24px;
+    color: #b8bec5;
+}
+.carbide-error { color: #f0b0aa; }
+
+/* ------------------------------------------------------------- filter bar */
+
+.carbide-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    align-items: flex-end;
+    padding: 12px 14px;
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+.carbide-f { display: flex; flex-direction: column; }
+.carbide-f-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #8a949e;
+    margin-bottom: 4px;
+}
+.carbide-input {
+    background: #101214;
+    color: #c9ced4;
+    border: 1px solid #3a3b3c;
+    border-radius: 3px;
+    padding: 6px 8px;
+    min-width: 150px;
+}
+.carbide-input:focus { outline: 1px solid #4ea1f2; }
+
+/* ------------------------------------------------------------- buttons */
+
+.carbide-btn {
+    padding: 6px 12px;
+    border-radius: 3px;
+    border: 1px solid #3a3b3c;
+    background: #2c3034;
+    color: #c9ced4;
+    cursor: pointer;
+    font-size: 12px;
+    white-space: nowrap;
+}
+.carbide-btn:hover { background: #3a3f44; border-color: #4ea1f2; }
+.carbide-btn.danger:hover { background: #5b1e1a; border-color: #dc4e41; }
+
+/* ------------------------------------------------------------- quick actions */
+
+.carbide-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 14px;
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
+    border-left: 3px solid #53a051;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+.carbide-actions-title {
+    color: #d8dee4;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 6px;
+}
+.carbide-sep { width: 1px; height: 22px; background: #3a3b3c; margin: 0 4px; }
+
+/* ------------------------------------------------------------- table */
+
+.carbide-count { padding: 6px 2px; color: #8a949e; font-size: 12px; }
+
+.carbide-tablewrap { overflow-x: auto; }
+
+.carbide-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #16181a;
+    border: 1px solid #2a3540;
+}
+.carbide-table thead th {
+    position: sticky;
+    top: 0;
+    background: #232629;
+    color: #d8dee4;
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #2a3540;
+    white-space: nowrap;
+    user-select: none;
+}
+.carbide-table thead th.sortable { cursor: pointer; }
+.carbide-table thead th.sortable:hover { color: #ffffff; }
+.carbide-table thead th.asc::after  { content: " ▲"; color: #4ea1f2; font-size: 10px; }
+.carbide-table thead th.desc::after { content: " ▼"; color: #4ea1f2; font-size: 10px; }
+
+.carbide-table tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #22262a;
+    color: #c9ced4;
+    white-space: nowrap;
+}
+.carbide-table tbody tr:nth-child(even) td { background: #1b1e21; }
+.carbide-table tbody tr:hover td { background: #242a30; }
+
+.carbide-table td.editable { cursor: pointer; background: #1c2733; }
+.carbide-table tbody tr:nth-child(even) td.editable { background: #20303f; }
+.carbide-table tbody tr:hover td.editable { background: #2b4a62; }
+.carbide-table td.editable:hover { outline: 1px solid rgba(78,161,242,0.5); }
+
+.carbide-table td.carbide-empty {
+    padding: 22px;
+    text-align: center;
+    color: #8a949e;
+    white-space: normal;
+}
+
+.carbide-edit {
+    width: 100%;
+    box-sizing: border-box;
+    background: #ffffff;
+    color: #111;
+    border: 1px solid #4ea1f2;
+    border-radius: 2px;
+    padding: 3px 5px;
+    font-size: 12px;
+}
+
+/* ------------------------------------------------------------- chips */
+
+.carbide-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.carbide-chip-ok       { background: #1f4526; color: #7fd18a; }
+.carbide-chip-late     { background: #4d3c10; color: #f2cf6b; }
+.carbide-chip-down     { background: #521f1a; color: #f08c82; }
+.carbide-chip-critical { background: #451113; color: #f0716f; }
+.carbide-chip-maint    { background: #163a57; color: #7fbcf2; }
+.carbide-chip-offhours { background: #2b2750; color: #a89ff5; }
+.carbide-chip-new      { background: #2c3034; color: #aab2ba; }
+
+/* ------------------------------------------------------------- watching toggle */
+
+.carbide-watch {
+    padding: 2px 12px;
+    border-radius: 10px;
+    border: 1px solid #3a3b3c;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+}
+.carbide-watch.on  { background: #1f4526; color: #7fd18a; border-color: #2c7a3d; }
+.carbide-watch.off { background: #2c3034; color: #8a949e; }
+.carbide-watch:hover { border-color: #4ea1f2; }
+
+.carbide-trash {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: 0.45;
+    font-size: 13px;
+}
+.carbide-trash:hover { opacity: 1; }
+
+/* ------------------------------------------------------------- misc page bits */
+
+.carbide-intro {
+    padding: 10px 14px;
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
+    border-left: 3px solid #0a7c5b;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    color: #b8bec5;
+    line-height: 1.5;
+}
+
+.carbide-h3 { color: #d8dee4; margin: 18px 0 4px 0; font-size: 15px; }
+
+.carbide-table td.carbide-selcol,
+.carbide-table th.carbide-selcol { width: 28px; text-align: center; }
+.carbide-table .carbide-selcol input[type="checkbox"] {
+    width: 14px; height: 14px;
+    accent-color: #4ea1f2;
+    cursor: pointer;
+}
+
+.carbide-table a { color: #5aa8f5; text-decoration: none; }
+.carbide-table a:hover { text-decoration: underline; }
+
+.carbide-chip.carbide-crit-low      { background: #2c3034; color: #aab2ba; }
+.carbide-chip.carbide-crit-medium   { background: #4d3c10; color: #f2cf6b; }
+.carbide-chip.carbide-crit-high     { background: #521f1a; color: #f08c82; }
+.carbide-chip.carbide-crit-critical { background: #451113; color: #f0716f; }
+
+.carbide-addform .carbide-input { min-width: 130px; }
+
+/* ------------------------------------------------------------- toasts */
+
+.carbide-toast {
+    position: fixed;
+    right: 18px;
+    top: 60px;
+    z-index: 10000;
+    padding: 8px 14px;
+    border-radius: 3px;
+    font-size: 13px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    color: #eef1f4;
+    transition: opacity 350ms;
+}
+.carbide-toast.gone { opacity: 0; }
+.carbide-toast-ok  { background: #2c7a3d; }
+.carbide-toast-err { background: #b6332b; }
