@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-02.8';
+    var VERSION = '2026-07-02.9';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -693,7 +693,7 @@
     // =============================================================
 
     function crudPage(cfg) {
-        var state = { rows: [], loaded: false, search: '', sort: { key: cfg.sortKey, dir: 1 } };
+        var state = { rows: [], loaded: false, search: '', sort: { key: cfg.sortKey, dir: 1 }, add: {} };
 
         function filtered() {
             var needle = state.search.trim().toLowerCase();
@@ -733,19 +733,24 @@
             bar.appendChild(versionTag());
             root.appendChild(bar);
 
-            // add form
-            var form = el('div', 'carbide-actions carbide-addform');
-            form.appendChild(el('span', 'carbide-actions-title', cfg.addTitle));
-            var inputs = {};
-            cfg.addForm.forEach(function (f) {
-                var control = f.options ? select(f.options, f.value) : textInput('', f.placeholder);
-                inputs[f.key] = control;
-                form.appendChild(labeled(f.label, control));
-            });
-            form.appendChild(btn('Add', null, function () {
+            // Add form. Values live in state.add so they survive re-renders:
+            // dropdown choices STICK between adds (entering five similar
+            // rules doesn't mean re-picking everything five times); only
+            // the fields in cfg.clearAfterAdd reset after a successful add.
+            // Enter in any text field submits.
+            function addValue(f) {
+                if (state.add[f.key] !== undefined) return state.add[f.key];
+                if (f.value !== undefined) return f.value;
+                if (f.options) {
+                    var o = f.options[0];
+                    return (o && o.value !== undefined) ? o.value : o;
+                }
+                return '';
+            }
+            function doAdd() {
                 var doc = Object.assign({}, cfg.addDefaults || {});
                 cfg.addForm.forEach(function (f) {
-                    var v = inputs[f.key].value;
+                    var v = addValue(f);
                     doc[f.key] = f.numeric ? Number(v) : String(v).trim();
                 });
                 var err = cfg.validate && cfg.validate(doc);
@@ -753,10 +758,27 @@
                 kvCreate(cfg.collection, doc).then(function (resp) {
                     doc._key = resp && resp._key;
                     state.rows.push(doc);
+                    (cfg.clearAfterAdd || []).forEach(function (k) { delete state.add[k]; });
                     toast('added');
                     render();
                 }).catch(function (e) { toast('add failed: ' + e.message, 'err'); });
-            }));
+            }
+            var form = el('div', 'carbide-actions carbide-addform');
+            form.appendChild(el('span', 'carbide-actions-title', cfg.addTitle));
+            cfg.addForm.forEach(function (f) {
+                var control;
+                if (f.options) {
+                    control = select(f.options, addValue(f), function (v) { state.add[f.key] = v; });
+                } else {
+                    control = textInput(addValue(f), f.placeholder, null);
+                    control.addEventListener('input', function () { state.add[f.key] = control.value; });
+                    control.addEventListener('keydown', function (ev) {
+                        if (ev.key === 'Enter') { ev.preventDefault(); doAdd(); }
+                    });
+                }
+                form.appendChild(labeled(f.label, control));
+            });
+            form.appendChild(btn('Add', null, doAdd));
             root.appendChild(form);
 
             var pool = filtered();
@@ -840,6 +862,7 @@
                 { key: 'notes', label: 'Notes', placeholder: 'optional' }
             ],
             addDefaults: { source: 'manual' },
+            clearAfterAdd: ['host', 'owner', 'business_unit', 'notes'],
             validate: function (d) { if (!d.host) return 'host is required'; },
             emptyText: 'No asset rows yet - add hosts that matter, or sync from ES.'
         },
@@ -864,6 +887,7 @@
                   options: [{ value: '0', label: 'No (fixed YYYY-MM-DD)' }, { value: '1', label: 'Yes (annual MM-DD)' }] },
                 { key: 'notes', label: 'Notes', placeholder: 'optional' }
             ],
+            clearAfterAdd: ['date', 'name', 'notes'],
             validate: function (d) {
                 if (!d.date) return 'date is required';
                 return validateHolidayDate(d.date, d);
@@ -877,8 +901,9 @@
                    'Scope a rule to a whole axis (hosts / sources / everything), or to ONE discovery mode - that lets two modes on the same axis split the estate: ' +
                    'e.g. include index=netdev* only for "sources by index+source" and exclude index=netdev* only for "sourcetypes by index+sourcetype". ' +
                    'Axis-scoped rules also trim the live status searches; mode-scoped rules apply at discovery.',
-            sortKey: 'pattern',
+            sortKey: 'tracking_type',
             searchFields: ['field_name', 'pattern', 'mode', 'tracking_type', 'notes'],
+            clearAfterAdd: ['pattern', 'notes'],
             columns: [
                 { key: 'tracking_type', label: 'Applies to', edit: { type: 'select', options: FILTER_SCOPES },
                   render: function (r) { return FILTER_SCOPE_LABELS[r.tracking_type] || r.tracking_type; } },
@@ -892,10 +917,10 @@
             ],
             addTitle: 'Add rule',
             addForm: [
-                { key: 'field_name', label: 'Field', options: ['index', 'host', 'source', 'sourcetype'] },
-                { key: 'pattern', label: 'Pattern', placeholder: 'e.g. wineventlog* or web0?' },
-                { key: 'mode', label: 'Mode', options: [{ value: 'include', label: 'include (whitelist)' }, { value: 'exclude', label: 'exclude (blacklist)' }] },
                 { key: 'tracking_type', label: 'Applies to', options: FILTER_SCOPES },
+                { key: 'field_name', label: 'Field', options: ['index', 'host', 'source', 'sourcetype'] },
+                { key: 'mode', label: 'Mode', options: [{ value: 'exclude', label: 'exclude (blacklist)' }, { value: 'include', label: 'include (whitelist)' }] },
+                { key: 'pattern', label: 'Pattern (* and ? wildcards)', placeholder: 'e.g. wineventlog* or web0?' },
                 { key: 'notes', label: 'Notes', placeholder: 'optional' }
             ],
             validate: function (d) { if (!d.pattern) return 'pattern is required'; },
