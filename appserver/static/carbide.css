@@ -450,6 +450,24 @@ h1.dashboard-title,
     background-color: #2a2f33 !important;
 }
 
+/* single-value tiles: the light theme draws the big number near-black,
+   which vanishes on our forced-dark panels. All Carbide tiles use block
+   mode (white text on a colored block), but keep a light fallback for
+   any single value that isn't block-colored. Both HTML text and SVG
+   <text> variants are covered (color vs fill). */
+.dashboard-panel .single-value,
+[class*="dashboard-panel"] [class*="single-value"],
+.dashboard-panel .single-result,
+[class*="dashboard-panel"] [class*="single-result"],
+.dashboard-panel .under-label,
+[class*="dashboard-panel"] [class*="under-label"] {
+    color: #d8dee4 !important;
+}
+.dashboard-panel .single-value text,
+[class*="dashboard-panel"] [class*="single-value"] text {
+    fill: #d8dee4 !important;
+}
+
 /* pagination + results info under tables */
 .dashboard-panel .splunk-paginator a,
 [class*="dashboard-panel"] [class*="paginator"] a,

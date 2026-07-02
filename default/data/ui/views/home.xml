@@ -87,6 +87,9 @@
                 </search>
                 <option name="underLabel">entities</option>
                 <option name="colorBy">value</option>
+                <option name="colorMode">block</option>
+                <option name="useColors">1</option>
+                <option name="rangeValues">[0]</option>
                 <option name="rangeColors">["0x4ea1f2","0x4ea1f2"]</option>
                 <option name="height">110</option>
             </single>
@@ -99,7 +102,10 @@
                     </search>
                 <option name="underLabel">OK</option>
                 <option name="colorBy">value</option>
-                <option name="rangeColors">["0x53a051","0x53a051"]</option>
+                <option name="colorMode">block</option>
+                <option name="useColors">1</option>
+                <option name="rangeValues">[0]</option>
+                <option name="rangeColors">["0x6c7278","0x53a051"]</option>
                 <option name="height">110</option>
             </single>
         </panel>
@@ -147,7 +153,10 @@
                     </search>
                 <option name="underLabel">🔧 in maintenance</option>
                 <option name="colorBy">value</option>
-                <option name="rangeColors">["0x4ea1f2","0x4ea1f2"]</option>
+                <option name="colorMode">block</option>
+                <option name="useColors">1</option>
+                <option name="rangeValues">[0]</option>
+                <option name="rangeColors">["0x6c7278","0x4ea1f2"]</option>
                 <option name="height">110</option>
             </single>
         </panel>
