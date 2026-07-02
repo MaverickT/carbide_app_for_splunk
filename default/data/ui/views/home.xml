@@ -40,7 +40,7 @@
                           could be watched.
                         </p>
                         <p>
-                          Open <a href="/manager/carbide_app_for_splunk/saved/searches?app=carbide_app_for_splunk&amp;owner=&amp;ns=carbide_app_for_splunk" target="_blank">Settings &#8250; Searches, reports, and alerts</a>,
+                          Open <a href="/manager/carbide_app_for_splunk/saved/searches?app=carbide_app_for_splunk&amp;owner=admin&amp;ns=carbide_app_for_splunk" target="_blank">Settings &#8250; Searches, reports, and alerts</a>,
                           find <em>Carbide - Discover hosts (recommended)</em>
                           and click <strong>Run</strong>. Then do the same for
                           <em>Carbide - Discover sourcetypes (recommended)</em>.

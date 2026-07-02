@@ -265,3 +265,12 @@
     font-size: 11px;
     white-space: nowrap;
 }
+
+/* "Not watched" pseudo-status: deliberately quiet - it's the absence of
+   monitoring, not a state */
+.carbide-chip-off {
+    background: transparent;
+    color: #5a6470;
+    border: 1px dashed #3a3b3c;
+    font-weight: 400;
+}

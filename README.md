@@ -248,7 +248,7 @@ For each tracked entity over `carbide_status_window` (default `-24h@h`):
 ```spl
 | tstats max(_time) as last_event_time,
          max(_indextime) as last_indextime,
-         avg(_time) as avg_time, avg(_indextime) as avg_indextime,
+         latest(_indextime) as latest_indextime,
          count
   where `carbide_entity_filter("hosts")` AND index!=`carbide_index`
         AND [ <monitored entities from the KV store, via | format> ]
@@ -259,9 +259,11 @@ For each tracked entity over `carbide_status_window` (default `-24h@h`):
 then:
 
 - `current_gap`     = `now() - last_event_time`
-- `current_latency` = `avg_indextime - avg_time` (identical to
-  `avg(_indextime - _time)` by linearity, but stays on tstats' native
-  indexed-field fast path)
+- `current_latency` = `latest_indextime - last_event_time` — the ingest
+  delay of the **most recent event**. (tstats only allows
+  count/min/max/range/earliest/latest on time fields, so window-wide
+  latency averages aren't possible — and latest-event delay is the more
+  alert-relevant measure anyway.)
 - `status`          = `case(...)` as per the Status model above
 
 The embedded subsearch restricts the tstats to the entities you actually

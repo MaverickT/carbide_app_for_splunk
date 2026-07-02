@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-02.9';
+    var VERSION = '2026-07-02.10';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -425,6 +425,7 @@
     // =============================================================
 
     var STATUS_META = {
+        UNWATCHED: { label: '– Not watched',       cls: 'off' },
         OK:        { label: '✓ Healthy',           cls: 'ok' },
         LATE:      { label: '⚠ Delayed',           cls: 'late' },
         DOWN:      { label: '✗ Missing data',      cls: 'down' },
@@ -473,7 +474,11 @@
             return a.modeFilter ? list.filter(a.modeFilter) : list;
         }
 
+        // Status only exists for watched entities: the snapshot searches
+        // evaluate monitored=1 rows only, so anything unwatched would sit
+        // on its bootstrap "NEW" forever - show it as "Not watched" instead.
         function rowStatus(r) {
+            if (Number(r.monitored) !== 1) return 'UNWATCHED';
             var from = Number(r.maintenance_from) || 0;
             var until = Number(r.maintenance_until) || 0;
             if (from <= now() && until > now()) return 'MAINT';
@@ -597,7 +602,8 @@
                  { value: 'DOWN|CRITICAL', label: 'Missing (DOWN / CRITICAL)' },
                  { value: 'MAINT', label: 'Snoozed' },
                  { value: 'OFF_HOURS', label: 'Off-hours' },
-                 { value: 'NEW', label: 'Just added' }],
+                 { value: 'NEW', label: 'Just added (watched, no snapshot yet)' },
+                 { value: 'UNWATCHED', label: 'Not watched' }],
                 state.status, function (v) { state.status = v; render(); })));
             bar.appendChild(labeled('Search (contains)', textInput(state.search, 'entity, index, host, notes...', function (v) { state.search = v; render(); })));
             bar.appendChild(labeled('Tag (contains)', textInput(state.tag, 'prod, payments...', function (v) { state.tag = v; render(); })));
