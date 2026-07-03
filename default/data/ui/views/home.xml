@@ -92,6 +92,9 @@
                 <option name="rangeValues">[0]</option>
                 <option name="rangeColors">["0x4ea1f2","0x4ea1f2"]</option>
                 <option name="height">110</option>
+                <drilldown>
+                    <link target="_blank">manage_entities?form.type_tok=all&amp;form.watching_tok=1</link>
+                </drilldown>
             </single>
         </panel>
         <panel>
@@ -107,6 +110,9 @@
                 <option name="rangeValues">[0]</option>
                 <option name="rangeColors">["0x6c7278","0x53a051"]</option>
                 <option name="height">110</option>
+                <drilldown>
+                    <link target="_blank">manage_entities?form.type_tok=all&amp;form.status_tok=OK</link>
+                </drilldown>
             </single>
         </panel>
         <panel>
@@ -123,7 +129,7 @@
                 <option name="rangeColors">["0x53a051","0xf8be34","0xf8be34"]</option>
                 <option name="height">110</option>
                 <drilldown>
-                    <link target="_blank">manage_entities?form.status_tok=LATE</link>
+                    <link target="_blank">manage_entities?form.type_tok=all&amp;form.status_tok=LATE</link>
                 </drilldown>
             </single>
         </panel>
@@ -141,7 +147,7 @@
                 <option name="rangeColors">["0x53a051","0xdc4e41","0xdc4e41"]</option>
                 <option name="height">110</option>
                 <drilldown>
-                    <link target="_blank">manage_entities?form.status_tok=DOWN%7CCRITICAL</link>
+                    <link target="_blank">manage_entities?form.type_tok=all&amp;form.status_tok=DOWN%7CCRITICAL</link>
                 </drilldown>
             </single>
         </panel>
@@ -158,6 +164,9 @@
                 <option name="rangeValues">[0]</option>
                 <option name="rangeColors">["0x6c7278","0x4ea1f2"]</option>
                 <option name="height">110</option>
+                <drilldown>
+                    <link target="_blank">manage_entities?form.type_tok=all&amp;form.status_tok=MAINT</link>
+                </drilldown>
             </single>
         </panel>
     </row>
@@ -194,7 +203,7 @@
                 </format>
                 <drilldown>
                     <condition field="entity">
-                        <link target="_blank">manage_entities?form.search_tok=$click.value$</link>
+                        <link target="_blank">entity?entity_key=$click.value|u$</link>
                     </condition>
                 </drilldown>
             </table>
@@ -225,7 +234,7 @@
                 <option name="count">15</option>
                 <drilldown>
                     <condition field="entity">
-                        <link target="_blank">manage_entities?form.search_tok=$click.value$</link>
+                        <link target="_blank">entity?entity_key=$click.value|u$</link>
                     </condition>
                 </drilldown>
             </table>

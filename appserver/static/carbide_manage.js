@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-03.12';
+    var VERSION = '2026-07-03.13';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -91,7 +91,7 @@
     function stripKey(doc) {
         var out = {};
         Object.keys(doc).forEach(function (k) {
-            if (k !== '_key' && k !== '_user') out[k] = doc[k];
+            if (k.charAt(0) !== '_') out[k] = doc[k];   // _key, _user, our __coll tag
         });
         return out;
     }
@@ -439,7 +439,29 @@
 
     // Three UI axes over two KV collections: the sources collection is
     // split by tracking_mode into "Sources" and "Sourcetypes".
+    // Quote a value for use inside an SPL search expression.
+    function splQuote(v) {
+        return '"' + String(v == null ? '' : v).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    }
+
+    // Status only exists for watched entities; MAINT re-derived at read time.
+    function entityStatus(r) {
+        if (Number(r.monitored) !== 1) return 'UNWATCHED';
+        var from = Number(r.maintenance_from) || 0;
+        var until = Number(r.maintenance_until) || 0;
+        if (from <= now() && until > now()) return 'MAINT';
+        return r.last_status || 'NEW';
+    }
+
+    function statusChip(r) {
+        var st = entityStatus(r);
+        var meta = STATUS_META[st] || { label: st, cls: 'new' };
+        return el('span', 'carbide-chip carbide-chip-' + meta.cls, meta.label);
+    }
+
     var ENT_AXES = {
+        all:        { all: true, noun: '',
+                      discoverHint: 'the discovery searches' },
         host:       { collection: 'carbide_tracked_hosts',   noun: 'host',
                       discoverHint: '"Carbide - Discover hosts (recommended)"' },
         source:     { collection: 'carbide_tracked_sources', noun: 'source',
@@ -455,7 +477,7 @@
         var state = {
             axis: 'host',
             rows: { carbide_tracked_hosts: [], carbide_tracked_sources: [] },
-            selected: { host: new Set(), source: new Set(), sourcetype: new Set() },
+            selected: { all: new Set(), host: new Set(), source: new Set(), sourcetype: new Set() },
             loaded: false,
             watching: '*', status: '*', search: '', tag: '',
             details: false,
@@ -468,24 +490,23 @@
             var s = q.get('form.status_tok'); if (s) state.status = s;
             var f = q.get('form.search_tok'); if (f) state.search = f;
             var g = q.get('form.tag_tok');    if (g) state.tag = g;
+            var w = q.get('form.watching_tok'); if (w === '1' || w === '0') state.watching = w;
         })();
 
         function axisRows() {
             var a = ENT_AXES[state.axis];
+            if (a.all) return state.rows.carbide_tracked_hosts.concat(state.rows.carbide_tracked_sources);
             var list = state.rows[a.collection];
             return a.modeFilter ? list.filter(a.modeFilter) : list;
         }
 
-        // Status only exists for watched entities: the snapshot searches
-        // evaluate monitored=1 rows only, so anything unwatched would sit
-        // on its bootstrap "NEW" forever - show it as "Not watched" instead.
-        function rowStatus(r) {
-            if (Number(r.monitored) !== 1) return 'UNWATCHED';
-            var from = Number(r.maintenance_from) || 0;
-            var until = Number(r.maintenance_until) || 0;
-            if (from <= now() && until > now()) return 'MAINT';
-            return r.last_status || 'NEW';
+        function rowColl(r) {
+            return r.__coll || ENT_AXES[state.axis].collection;
         }
+
+        // Unwatched rows would sit on bootstrap "NEW" forever - the shared
+        // entityStatus() shows them as "Not watched" instead.
+        function rowStatus(r) { return entityStatus(r); }
 
         function filtered() {
             var needle = state.search.trim().toLowerCase();
@@ -513,7 +534,7 @@
             var row = change.row, prev = row[change.field];
             row[change.field] = change.value;
             row.last_updated = now();
-            kvSave(ENT_AXES[state.axis].collection, row).then(function () {
+            kvSave(rowColl(row), row).then(function () {
                 toast(change.field + ' saved');
                 render();
             }).catch(function (e) {
@@ -534,7 +555,11 @@
             if (!confirm(verb + ' on ' + scope + '?')) return;
             var ts = now();
             rows.forEach(function (r) { mutator(r); r.last_updated = ts; });
-            batchSaveAll(ENT_AXES[state.axis].collection, rows).then(function () {
+            var groups = {};
+            rows.forEach(function (r) { (groups[rowColl(r)] = groups[rowColl(r)] || []).push(r); });
+            Object.keys(groups).reduce(function (p, coll) {
+                return p.then(function () { return batchSaveAll(coll, groups[coll]); });
+            }, Promise.resolve()).then(function () {
                 toast(verb + ': ' + rows.length + ' rows updated');
                 render();
             }).catch(function (e) {
@@ -561,7 +586,13 @@
                       });
                       return b;
                   } },
-                { key: 'entity_key',          label: 'Entity' },
+                { key: 'entity_key',          label: 'Entity',
+                  render: function (r) {
+                      var a = el('a', null, r.entity_key);
+                      a.href = 'entity?k=' + encodeURIComponent(r._key || '') + '&c=' + encodeURIComponent(rowColl(r));
+                      a.title = 'Open entity page';
+                      return a;
+                  } },
                 { key: 'monitoring_schedule', label: 'Schedule', edit: { type: 'select', options: ['247', 'weekdays', 'business_hours'] },
                   render: function (r) { return r.monitoring_schedule || '247'; } },
                 { key: 'tags',                label: 'Tags', edit: { type: 'text' } },
@@ -592,7 +623,8 @@
             bar.appendChild(labeled('I want to manage', select(
                 [{ value: 'host', label: 'Hosts' },
                  { value: 'sourcetype', label: 'Sourcetypes' },
-                 { value: 'source', label: 'Sources' }],
+                 { value: 'source', label: 'Sources' },
+                 { value: 'all', label: 'Everything' }],
                 state.axis, function (v) { state.axis = v; render(); })));
             bar.appendChild(labeled('Watching', select(
                 [{ value: '*', label: 'All' }, { value: '1', label: 'On (watching)' }, { value: '0', label: 'Off (not watching)' }],
@@ -644,7 +676,7 @@
 
             root.appendChild(el('div', 'carbide-count',
                 pool.length + ' of ' + axisRows().length + ' tracked ' +
-                ENT_AXES[state.axis].noun + ' entities' +
+                (ENT_AXES[state.axis].noun ? ENT_AXES[state.axis].noun + ' ' : '') + 'entities' +
                 (selCount ? ' - ' + selCount + ' selected' : '') +
                 (state.loaded ? '' : ' (loading…)')));
 
@@ -664,8 +696,8 @@
                 },
                 onDelete: function (r) {
                     if (!confirm('Stop tracking ' + r.entity_key + ' ? (KV row is deleted; data ingestion unaffected)')) return;
-                    kvDelete(ENT_AXES[state.axis].collection, r._key).then(function () {
-                        var list = state.rows[ENT_AXES[state.axis].collection];
+                    kvDelete(rowColl(r), r._key).then(function () {
+                        var list = state.rows[rowColl(r)];
                         var i = list.indexOf(r);
                         if (i >= 0) list.splice(i, 1);
                         state.selected[state.axis].delete(r._key);
@@ -684,6 +716,8 @@
             Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources')]).then(function (res) {
                 state.rows.carbide_tracked_hosts = res[0] || [];
                 state.rows.carbide_tracked_sources = res[1] || [];
+                state.rows.carbide_tracked_hosts.forEach(function (r) { r.__coll = 'carbide_tracked_hosts'; });
+                state.rows.carbide_tracked_sources.forEach(function (r) { r.__coll = 'carbide_tracked_sources'; });
                 state.loaded = true;
                 render();
             }).catch(function (e) {
@@ -1120,9 +1154,8 @@
                     { key: 'entity_key', label: 'Entity',
                       render: function (r) {
                           var a = el('a', null, r.entity_key);
-                          var target = axis.id;
-                          if (target === 'source' && String(r.entity_key || '').indexOf('|sourcetype=') >= 0) target = 'sourcetype';
-                          a.href = 'manage_entities?form.type_tok=' + target + '&form.search_tok=' + encodeURIComponent(r.entity_key || '');
+                          a.href = 'entity?entity_key=' + encodeURIComponent(r.entity_key || '');
+                          a.title = 'Open entity page';
                           return a;
                       } },
                     numCol('current_max_latency',   'Current latency (s)'),
@@ -1179,6 +1212,258 @@
         load();
     }
 
+    // =============================================================
+    //  PAGE: entity (detail / drilldown target)
+    // =============================================================
+
+    function entityPage() {
+        var q = new URLSearchParams(location.search);
+        var wantKey    = q.get('k');
+        var wantColl   = q.get('c');
+        var wantEntity = q.get('entity_key') || q.get('form.entity_key');
+
+        var row = null, coll = null;
+
+        function saveField(change) {
+            if (!change) { renderMain(); return; }
+            var prev = row[change.field];
+            row[change.field] = change.value;
+            row.last_updated = now();
+            kvSave(coll, row).then(function () {
+                toast(change.field + ' saved');
+                renderMain();
+            }).catch(function (e) {
+                row[change.field] = prev;
+                toast('save failed: ' + e.message, 'err');
+                renderMain();
+            });
+        }
+
+        function setField(field, value) { saveField({ row: row, field: field, value: value }); }
+
+        function kvRow(label, valueNode, colDef) {
+            var r = el('div', 'carbide-kv-row');
+            r.appendChild(el('span', 'carbide-kv-label', label));
+            var v = el('span', 'carbide-kv-value');
+            if (valueNode instanceof Node) v.appendChild(valueNode);
+            else v.textContent = valueNode == null ? '-' : String(valueNode);
+            if (colDef) {
+                v.classList.add('editable');
+                v.title = 'click to edit';
+                v.addEventListener('click', function () { beginEdit(v, row, colDef, saveField); });
+            }
+            r.appendChild(v);
+            return r;
+        }
+
+        function box(title) {
+            var b = el('div', 'carbide-box');
+            b.appendChild(el('h3', 'carbide-h3', title));
+            return b;
+        }
+
+        function resultsTable(headers, rows, renderCell) {
+            var wrap = el('div', 'carbide-tablewrap');
+            var table = el('table', 'carbide-table');
+            var thead = el('thead');
+            var htr = el('tr');
+            headers.forEach(function (h) { htr.appendChild(el('th', null, h.label)); });
+            thead.appendChild(htr);
+            table.appendChild(thead);
+            var tbody = el('tbody');
+            if (!rows.length) {
+                var tr0 = el('tr');
+                var td0 = el('td', 'carbide-empty', 'Nothing in this window.');
+                td0.colSpan = headers.length;
+                tr0.appendChild(td0);
+                tbody.appendChild(tr0);
+            }
+            rows.forEach(function (r) {
+                var tr = el('tr');
+                headers.forEach(function (h) {
+                    var td = el('td');
+                    if (h.raw) td.classList.add('carbide-raw');
+                    var v = r[h.key];
+                    td.textContent = v == null || v === '' ? '-' : String(v);
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            wrap.appendChild(table);
+            return wrap;
+        }
+
+        var main, historyBox, eventsBox;
+
+        function renderMain() {
+            main.textContent = '';
+
+            // header: back link, title, status, actions
+            var head = el('div', 'carbide-entity-head');
+            var back = el('a', 'carbide-back', '← Manage entities');
+            back.href = 'manage_entities';
+            head.appendChild(back);
+            head.appendChild(el('h2', 'carbide-entity-title', row.entity_key));
+            head.appendChild(statusChip(row));
+
+            var on = Number(row.monitored) === 1;
+            var watch = el('button', 'carbide-watch ' + (on ? 'on' : 'off'), on ? 'Watching: On' : 'Watching: Off');
+            watch.addEventListener('click', function () { setField('monitored', on ? 0 : 1); });
+            head.appendChild(watch);
+
+            head.appendChild(btn('🔧 Snooze 1h', null, function () { setField('maintenance_until', now() + 3600); }));
+            head.appendChild(btn('🔧 Snooze 1d', null, function () { setField('maintenance_until', now() + 86400); }));
+            if (Number(row.maintenance_until) > now()) {
+                head.appendChild(btn('End snooze', null, function () { setField('maintenance_until', 0); }));
+            }
+            head.appendChild(btn('🗑 Stop tracking', 'danger', function () {
+                if (!confirm('Stop tracking ' + row.entity_key + ' ? (KV row is deleted; data ingestion unaffected)')) return;
+                kvDelete(coll, row._key).then(function () {
+                    toast('removed');
+                    location.href = 'manage_entities';
+                }).catch(function (e) { toast('delete failed: ' + e.message, 'err'); });
+            }));
+            main.appendChild(head);
+
+            var cols = el('div', 'carbide-cols');
+
+            var cfg = box('Configuration (click a value to edit)');
+            cfg.appendChild(kvRow('Schedule', row.monitoring_schedule || '247',
+                { key: 'monitoring_schedule', label: 'Schedule', edit: { type: 'select', options: ['247', 'weekdays', 'business_hours'] } }));
+            cfg.appendChild(kvRow('Alert if quiet for', fmtDur(row.max_gap_seconds),
+                { key: 'max_gap_seconds', label: 'Alert if quiet for', edit: { type: 'duration' } }));
+            cfg.appendChild(kvRow('Alert if delayed by', fmtDur(row.max_latency_seconds),
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' } }));
+            cfg.appendChild(kvRow('Snooze from', Number(row.maintenance_from) ? fmtTs(row.maintenance_from) : '-',
+                { key: 'maintenance_from', label: 'Snooze from', edit: { type: 'snooze' } }));
+            cfg.appendChild(kvRow('Snoozed until', fmtUntil(row.maintenance_until),
+                { key: 'maintenance_until', label: 'Snoozed until', edit: { type: 'snooze' } }));
+            cfg.appendChild(kvRow('Tags', row.tags || '-', { key: 'tags', label: 'Tags', edit: { type: 'text' } }));
+            cfg.appendChild(kvRow('Notes', row.notes || '-', { key: 'notes', label: 'Notes', edit: { type: 'text' } }));
+            if (coll === 'carbide_tracked_hosts') {
+                cfg.appendChild(kvRow('Grouped by', row.tracking_mode,
+                    { key: 'tracking_mode', label: 'Grouped by', edit: { type: 'select', options: HOST_TRACKING_MODES } }));
+            } else {
+                cfg.appendChild(kvRow('Grouped by', row.tracking_mode));
+            }
+            cols.appendChild(cfg);
+
+            var det = box('Details');
+            det.appendChild(kvRow('Index', row.index));
+            det.appendChild(kvRow('Host', row.host));
+            det.appendChild(kvRow('Source', row.source));
+            det.appendChild(kvRow('Sourcetype', row.sourcetype));
+            det.appendChild(kvRow('Last event seen', fmtTs(row.last_event_time)));
+            det.appendChild(kvRow('Ingest delay at last snapshot', fmtDur(row.last_latency)));
+            det.appendChild(kvRow('First seen', fmtTs(row.first_seen)));
+            det.appendChild(kvRow('Last updated', fmtTs(row.last_updated)));
+            cols.appendChild(det);
+
+            main.appendChild(cols);
+            main.appendChild(historyBox);
+            main.appendChild(eventsBox);
+        }
+
+        function loadHistory() {
+            historyBox.textContent = '';
+            historyBox.appendChild(el('h3', 'carbide-h3', 'Status history (7 days: transitions + hourly non-OK heartbeats)'));
+            historyBox.appendChild(el('div', 'carbide-loading', 'Searching the carbide index…'));
+            var spl = 'search index=`carbide_index` sourcetype="carbide:status" entity_key=' + splQuote(row.entity_key) +
+                      ' | sort - _time | head 50' +
+                      ' | eval when = strftime(_time, "%Y-%m-%d %H:%M:%S")' +
+                      ' | eval kind = if(event_kind == "heartbeat", "heartbeat", "transition")' +
+                      ' | table when, kind, previous_status, status, current_gap, current_latency';
+            oneshot(spl, '-7d@h', 'now').then(function (rows) {
+                historyBox.textContent = '';
+                historyBox.appendChild(el('h3', 'carbide-h3', 'Status history (7 days: transitions + hourly non-OK heartbeats)'));
+                historyBox.appendChild(resultsTable([
+                    { key: 'when', label: 'When' },
+                    { key: 'kind', label: 'Kind' },
+                    { key: 'previous_status', label: 'From' },
+                    { key: 'status', label: 'To / status' },
+                    { key: 'current_gap', label: 'Gap (s)' },
+                    { key: 'current_latency', label: 'Delay (s)' }
+                ], rows));
+            }).catch(function (e) {
+                historyBox.appendChild(el('div', 'carbide-error', 'History search failed: ' + e.message));
+            });
+        }
+
+        function loadEvents() {
+            eventsBox.textContent = '';
+            eventsBox.appendChild(el('h3', 'carbide-h3', 'Latest raw events (last 24h, max 20)'));
+            eventsBox.appendChild(el('div', 'carbide-loading', 'Fetching events…'));
+            var terms = [];
+            ['index', 'host', 'source', 'sourcetype'].forEach(function (f) {
+                var v = row[f];
+                if (v != null && v !== '' && v !== '*') terms.push(f + '=' + splQuote(v));
+            });
+            var spl = 'search ' + terms.join(' ') +
+                      ' | sort - _time | head 20' +
+                      ' | eval when = strftime(_time, "%Y-%m-%d %H:%M:%S")' +
+                      ' | table when, index, host, sourcetype, source, _raw';
+            oneshot(spl, '-24h@h', 'now').then(function (rows) {
+                eventsBox.textContent = '';
+                eventsBox.appendChild(el('h3', 'carbide-h3', 'Latest raw events (last 24h, max 20)'));
+                eventsBox.appendChild(resultsTable([
+                    { key: 'when', label: 'When' },
+                    { key: 'index', label: 'Index' },
+                    { key: 'host', label: 'Host' },
+                    { key: 'sourcetype', label: 'Sourcetype' },
+                    { key: 'source', label: 'Source' },
+                    { key: '_raw', label: 'Event', raw: true }
+                ], rows));
+            }).catch(function (e) {
+                eventsBox.appendChild(el('div', 'carbide-error', 'Event search failed: ' + e.message));
+            });
+        }
+
+        function start() {
+            main = el('div');
+            historyBox = el('div', 'carbide-box carbide-box-wide');
+            eventsBox = el('div', 'carbide-box carbide-box-wide');
+            root.textContent = '';
+            root.appendChild(main);
+            renderMain();
+            loadHistory();
+            loadEvents();
+        }
+
+        function fail(msg) {
+            root.textContent = '';
+            var e = el('div', 'carbide-error', msg);
+            root.appendChild(e);
+            var back = el('a', 'carbide-back', '← Manage entities');
+            back.href = 'manage_entities';
+            root.appendChild(back);
+        }
+
+        if (wantKey && wantColl) {
+            rest('GET', kvUrl(wantColl, wantKey)).then(function (doc) {
+                if (!doc || !doc._key) throw new Error('row not found');
+                row = doc; coll = wantColl;
+                start();
+            }).catch(function () { resolveByEntityKey(); });
+        } else {
+            resolveByEntityKey();
+        }
+
+        function resolveByEntityKey() {
+            if (!wantEntity && !wantKey) { fail('No entity specified.'); return; }
+            Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources')]).then(function (res) {
+                var pools = [['carbide_tracked_hosts', res[0] || []], ['carbide_tracked_sources', res[1] || []]];
+                for (var i = 0; i < pools.length; i++) {
+                    var hit = pools[i][1].filter(function (r) {
+                        return (wantEntity && r.entity_key === wantEntity) || (wantKey && r._key === wantKey);
+                    })[0];
+                    if (hit) { row = hit; coll = pools[i][0]; start(); return; }
+                }
+                fail('Entity not found: ' + (wantEntity || wantKey) + ' - it may have been deleted or renamed.');
+            }).catch(function (e) { fail('Could not load collections: ' + e.message); });
+        }
+    }
+
     // ------------------------------------------------------------- boot
 
     var booted = false;
@@ -1189,6 +1474,7 @@
         booted = true;
         var page = root.getAttribute('data-page') || 'manage_entities';
         if (page === 'manage_entities')         entitiesPage();
+        else if (page === 'entity')             entityPage();
         else if (page === 'manage_suggestions') suggestionsPage();
         else if (CRUD_PAGES[page])              crudPage(CRUD_PAGES[page]);
         else root.appendChild(el('div', 'carbide-error', 'Unknown page: ' + page));

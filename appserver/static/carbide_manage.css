@@ -274,7 +274,7 @@
     white-space: nowrap;
 }
 .carbide-version::after {
-    content: " · css v3";
+    content: " · css v4";
     color: #5a6470;
 }
 
@@ -285,4 +285,56 @@
     color: #5a6470;
     border: 1px dashed #3a3b3c;
     font-weight: 400;
+}
+
+/* ------------------------------------------------------------- entity page */
+
+.carbide-entity-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
+    border-left: 3px solid #4ea1f2;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+.carbide-entity-title { margin: 0; color: #d8dee4; font-size: 17px; }
+.carbide-back { color: #5aa8f5; text-decoration: none; font-size: 12px; white-space: nowrap; }
+.carbide-back:hover { text-decoration: underline; }
+
+.carbide-cols { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.carbide-box {
+    flex: 1;
+    min-width: 340px;
+    background: #1b1c1d;
+    border: 1px solid #2a3540;
+    border-radius: 4px;
+    padding: 10px 14px 14px 14px;
+}
+.carbide-box-wide { flex-basis: 100%; margin-bottom: 10px; }
+.carbide-box .carbide-h3 { margin-top: 2px; }
+
+.carbide-kv-row { display: flex; padding: 5px 0; border-bottom: 1px solid #22262a; }
+.carbide-kv-row:last-child { border-bottom: none; }
+.carbide-kv-label { width: 210px; color: #8a949e; flex-shrink: 0; }
+.carbide-kv-value { flex: 1; color: #c9ced4; }
+.carbide-kv-value.editable {
+    cursor: pointer;
+    background: #1c2733;
+    border-radius: 2px;
+    padding: 0 6px;
+    margin: -1px 0;
+}
+.carbide-kv-value.editable:hover { background: #2b4a62; outline: 1px solid rgba(78,161,242,0.5); }
+
+.carbide-table td.carbide-raw {
+    white-space: normal;
+    word-break: break-all;
+    font-family: monospace;
+    font-size: 11px;
+    max-width: 720px;
+    color: #aab2ba;
 }

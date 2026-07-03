@@ -107,6 +107,11 @@
                 </search>
                 <option name="drilldown">cell</option>
                 <option name="count">50</option>
+                <drilldown>
+                    <condition field="entity">
+                        <link target="_blank">entity?entity_key=$click.value|u$</link>
+                    </condition>
+                </drilldown>
                 <format type="color" field="transition">
                     <colorPalette type="map">{"OK → DOWN":#dc4e41,"OK → CRITICAL":#9b1d1d,"OK → LATE":#f8be34,"DOWN → OK":#53a051,"CRITICAL → OK":#53a051,"LATE → OK":#53a051,"NEW → OK":#53a051}</colorPalette>
                 </format>
@@ -167,6 +172,11 @@
                     </search>
                 <option name="drilldown">cell</option>
                 <option name="count">30</option>
+                <drilldown>
+                    <condition field="entity">
+                        <link target="_blank">entity?entity_key=$click.value|u$</link>
+                    </condition>
+                </drilldown>
                 <format type="color" field="status">
                     <colorPalette type="map">{"OK":#53a051,"LATE":#f8be34,"DOWN":#dc4e41,"CRITICAL":#9b1d1d,"MAINT":#4ea1f2,"OFF_HOURS":#6c63ff,"NEW":#888888}</colorPalette>
                 </format>
