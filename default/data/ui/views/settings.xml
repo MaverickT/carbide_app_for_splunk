@@ -34,6 +34,7 @@
                         | append [ | inputlookup carbide_entity_filters_seed    | stats count as rows | eval check="carbide_entity_filters_seed CSV present" ]
                         | append [ | inputlookup carbide_holidays_lookup        | stats count as rows | eval check="carbide_holidays collection reachable" ]
                         | append [ | inputlookup carbide_assets_lookup          | stats count as rows | eval check="carbide_assets collection reachable" ]
+                        | append [ | inputlookup carbide_autowatch_lookup       | stats count as rows | eval check="carbide_autowatch_rules collection reachable" ]
                         | append [ | tstats count as rows where index=`carbide_index` earliest=-7d@d | eval check="dedicated index `carbide_index` reachable + recent snapshots" ]
                         | append [ | tstats count as rows where `carbide_entity_filter("hosts")` earliest=-1h@h | eval check="carbide_entity_filter(\"hosts\") macro returns a valid clause" ]
                         | eval status = case(
@@ -87,6 +88,7 @@
                         | append [ | inputlookup carbide_entity_filters_lookup  | stats count as rows | eval collection="carbide_entity_filters"  ]
                         | append [ | inputlookup carbide_assets_lookup          | stats count as rows | eval collection="carbide_assets"          ]
                         | append [ | inputlookup carbide_holidays_lookup        | stats count as rows | eval collection="carbide_holidays"        ]
+                        | append [ | inputlookup carbide_autowatch_lookup       | stats count as rows | eval collection="carbide_autowatch_rules"  ]
                         | where isnotnull(collection)
                         | table collection rows
                     </query>

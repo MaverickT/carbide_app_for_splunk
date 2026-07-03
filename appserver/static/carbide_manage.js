@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-03.11';
+    var VERSION = '2026-07-03.12';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -385,7 +385,9 @@
             done = true;
             if (cancel) { onEdit(null); return; }
             var v;
-            if (kind === 'snooze') {
+            if (kind === 'select' && col.edit.numeric) {
+                v = Number(input.value);
+            } else if (kind === 'snooze') {
                 var secs = Number(input.value);
                 v = secs === 0 ? 0 : now() + secs;
             } else if (kind === 'duration') {
@@ -755,10 +757,20 @@
             }
             function doAdd() {
                 var doc = Object.assign({}, cfg.addDefaults || {});
+                var formErr = null;
                 cfg.addForm.forEach(function (f) {
                     var v = addValue(f);
+                    if (f.duration) {
+                        var dv = String(v).trim();
+                        if (dv === '' || dv === '0' || dv === '0s') return; // blank = keep defaults
+                        var secs = parseDuration(dv);
+                        if (secs === null || secs < 0) { formErr = f.label + ': use a duration like 15m, 7h, 1d (or leave blank)'; return; }
+                        doc[f.key] = secs;
+                        return;
+                    }
                     doc[f.key] = f.numeric ? Number(v) : String(v).trim();
                 });
+                if (formErr) { toast(formErr, 'err'); return; }
                 var err = cfg.validate && cfg.validate(doc);
                 if (err) { toast(err, 'err'); return; }
                 kvCreate(cfg.collection, doc).then(function (resp) {
@@ -842,7 +854,84 @@
     var FILTER_SCOPE_LABELS = {};
     FILTER_SCOPES.forEach(function (s) { FILTER_SCOPE_LABELS[s.value] = s.label; });
 
+    var AUTOWATCH_SCOPES = [
+        { value: '*',                  label: 'everything' },
+        { value: 'hosts|*',            label: 'hosts axis (every host mode)' },
+        { value: 'sources|*',          label: 'sources axis (every source mode)' },
+        { value: '*|index_host',       label: 'only: hosts by index+host' },
+        { value: '*|host_source',      label: 'only: hosts by host+source' },
+        { value: '*|host_sourcetype',  label: 'only: hosts by host+sourcetype' },
+        { value: '*|index_sourcetype', label: 'only: sourcetypes by index+sourcetype' },
+        { value: '*|index_source',     label: 'only: sources by index+source' }
+    ];
+    var AUTOWATCH_SCOPE_LABELS = {};
+    AUTOWATCH_SCOPES.forEach(function (s) { AUTOWATCH_SCOPE_LABELS[s.value] = s.label; });
+
+    var SCHEDULE_OPTIONS = [
+        { value: '', label: 'keep default' },
+        { value: '247', label: '24/7' },
+        { value: 'weekdays', label: 'weekdays' },
+        { value: 'business_hours', label: 'business hours' }
+    ];
+
     var CRUD_PAGES = {
+        manage_autowatch: {
+            collection: 'carbide_autowatch_rules',
+            intro: 'Auto-watch: when discovery finds a NEW entity whose scope and patterns all match a rule (wildcards * and ?), the rule is applied at insert time - start watching, set schedule, thresholds, tags. ' +
+                   'Rules are NOT retroactive (existing entities are untouched - use Manage entities for those) and the FIRST matching rule wins, so keep rules disjoint. ' +
+                   'Blank threshold or "keep default" schedule = the app defaults. The entity\'s Notes records which rule onboarded it.',
+            sortKey: 'rule_name',
+            searchFields: ['rule_name', 'index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern', 'tags', 'notes'],
+            clearAfterAdd: ['rule_name', 'index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern', 'tags', 'notes'],
+            columns: [
+                { key: 'rule_name',          label: 'Rule', edit: { type: 'text', validate: function (v) { if (!v) return 'rule name is required'; } } },
+                { key: 'scope_pattern',      label: 'Applies to', edit: { type: 'select', options: AUTOWATCH_SCOPES },
+                  render: function (r) { return AUTOWATCH_SCOPE_LABELS[r.scope_pattern] || r.scope_pattern; } },
+                { key: 'index_pattern',      label: 'Index matches', edit: { type: 'text' } },
+                { key: 'host_pattern',       label: 'Host matches', edit: { type: 'text' } },
+                { key: 'source_pattern',     label: 'Source matches', edit: { type: 'text' } },
+                { key: 'sourcetype_pattern', label: 'Sourcetype matches', edit: { type: 'text' } },
+                { key: 'watch',              label: 'Watch', edit: { type: 'select', options: ['1', '0'], numeric: true },
+                  render: function (r) {
+                      return el('span', 'carbide-chip ' + (Number(r.watch) === 1 ? 'carbide-chip-ok' : 'carbide-chip-new'),
+                                Number(r.watch) === 1 ? 'Yes' : 'No');
+                  } },
+                { key: 'monitoring_schedule', label: 'Schedule', edit: { type: 'select', options: SCHEDULE_OPTIONS },
+                  render: function (r) { return r.monitoring_schedule || 'keep default'; } },
+                { key: 'max_gap_seconds',    label: 'Alert if quiet for', edit: { type: 'duration' },
+                  render: function (r) { return Number(r.max_gap_seconds) > 0 ? fmtDur(r.max_gap_seconds) : 'keep default'; },
+                  title: function (r) { return '0s = keep default'; } },
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' },
+                  render: function (r) { return Number(r.max_latency_seconds) > 0 ? fmtDur(r.max_latency_seconds) : 'keep default'; },
+                  title: function (r) { return '0s = keep default'; } },
+                { key: 'tags',               label: 'Tags', edit: { type: 'text' } },
+                { key: 'notes',              label: 'Notes', edit: { type: 'text' } }
+            ],
+            addTitle: 'Add rule',
+            addForm: [
+                { key: 'rule_name', label: 'Rule name', placeholder: 'e.g. Windows prod servers' },
+                { key: 'scope_pattern', label: 'Applies to', options: AUTOWATCH_SCOPES },
+                { key: 'index_pattern', label: 'Index matches', placeholder: '* (any)' },
+                { key: 'host_pattern', label: 'Host matches', placeholder: '* (any)' },
+                { key: 'source_pattern', label: 'Source matches', placeholder: '* (any)' },
+                { key: 'sourcetype_pattern', label: 'Sourcetype matches', placeholder: '* (any)' },
+                { key: 'watch', label: 'Watch', numeric: true,
+                  options: [{ value: '1', label: 'Yes - start watching' }, { value: '0', label: 'No - only apply settings' }] },
+                { key: 'monitoring_schedule', label: 'Schedule', options: SCHEDULE_OPTIONS },
+                { key: 'max_gap_seconds', label: 'Alert if quiet for', duration: true, placeholder: '7h, 1d... (blank = default)' },
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', duration: true, placeholder: '15m... (blank = default)' },
+                { key: 'tags', label: 'Tags', placeholder: 'prod, windows' },
+                { key: 'notes', label: 'Notes', placeholder: 'optional' }
+            ],
+            validate: function (d) {
+                if (!d.rule_name) return 'rule name is required';
+                ['index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern'].forEach(function (k) {
+                    if (!d[k]) d[k] = '*';
+                });
+            },
+            emptyText: 'No auto-watch rules - newly discovered entities arrive unwatched with the app defaults.'
+        },
+
         manage_assets: {
             collection: 'carbide_assets',
             intro: 'Per-host metadata joined into host status: alerts and dashboards carry criticality / owner / business unit. Works without ES - add rows here, or enable the "Carbide - Sync ES asset_lookup_by_str" saved search. An empty table is a valid state.',

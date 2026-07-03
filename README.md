@@ -54,6 +54,12 @@ Carbide is deliberately small and opinionated:
 - **Settings → Audit trail** sources from Splunk's built-in
   `splunkd_access` log, so every KV write under the app is recorded
   automatically without any browser-side audit code.
+- **Auto-watch rules**: when discovery finds a new entity matching a
+  rule (scope + wildcard patterns on index/host/source/sourcetype),
+  it's onboarded at insert time - watching enabled, schedule and
+  gap/latency thresholds set, tags applied. First matching rule wins;
+  rules are not retroactive; the entity's notes record which rule
+  onboarded it. Manage > Auto-watch rules.
 - **Scoped include/exclude rules** on any of
   `index` / `host` / `source` / `sourcetype`. Patterns support Splunk
   wildcards (`*`, `?`). A rule applies to everything, to one axis

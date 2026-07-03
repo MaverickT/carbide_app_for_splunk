@@ -2,6 +2,7 @@
     <view name="home" default="true" />
     <collection label="Manage">
         <view name="manage_entities"       />
+        <view name="manage_autowatch"      />
         <view name="manage_assets"         />
         <view name="manage_holidays"       />
         <view name="manage_entity_filters" />

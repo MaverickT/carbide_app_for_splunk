@@ -25,6 +25,14 @@ export = system
 access = read : [ * ], write : [ admin, power, sc_admin ]
 export = system
 
+[collections/carbide_autowatch_rules]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
+[transforms/carbide_autowatch_lookup]
+access = read : [ * ], write : [ admin, power, sc_admin ]
+export = system
+
 [collections/carbide_assets]
 access = read : [ * ], write : [ admin, power, sc_admin ]
 export = system
