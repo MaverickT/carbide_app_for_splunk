@@ -347,16 +347,14 @@ ships with the app) by adding rows manually, OR enable the optional
 if you have ES + a populated asset framework. Empty collection = no
 enrichment, no errors — the lookup is a best-effort join.
 
-### 4. Risk-based alerting (opt-in)
-*Carbide - Risk: Security data source outage* (ships disabled) emits
-risk events to `index=risk` for every monitored entity tagged
-`security` that is currently DOWN or CRITICAL. ES's risk framework
-picks them up via `risk_object` / `risk_score` / `risk_message`. Tag
-your security-critical data sources (firewall logs, AD, EDR, etc.)
-with `security` in the Manage entities view and enable the saved
-search. When one of them goes dark the asset's risk score climbs in
-proportion to the host's `asset_criticality` (Manage assets), with a
-`20` fallback for unmapped hosts and all sources.
+### 4. Risk-based alerting
+*Carbide - Alert: Hosts* carries the ES `risk` adaptive response
+action (`action.risk`): every firing adds a risk event for the
+affected host (`risk_object_type=system`, base `risk_score=20`,
+message includes entity, status and gap). Tune the base score in the
+alert (UI or `local/savedsearches.conf`); use **ES Risk Factors** to
+scale it by asset priority, category, etc. Without ES the action is a
+no-op, same as the notable action.
 
 ## Search-head clustering
 
