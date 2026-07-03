@@ -436,7 +436,7 @@
     };
 
     // Three UI axes over two KV collections: the sources collection is
-    // split by tracking_mode into "Sources (file paths)" and "Sourcetypes".
+    // split by tracking_mode into "Sources" and "Sourcetypes".
     var ENT_AXES = {
         host:       { collection: 'carbide_tracked_hosts',   noun: 'host',
                       discoverHint: '"Carbide - Discover hosts (recommended)"' },
@@ -590,7 +590,7 @@
             bar.appendChild(labeled('I want to manage', select(
                 [{ value: 'host', label: 'Hosts' },
                  { value: 'sourcetype', label: 'Sourcetypes' },
-                 { value: 'source', label: 'Sources (file paths)' }],
+                 { value: 'source', label: 'Sources' }],
                 state.axis, function (v) { state.axis = v; render(); })));
             bar.appendChild(labeled('Watching', select(
                 [{ value: '*', label: 'All' }, { value: '1', label: 'On (watching)' }, { value: '0', label: 'Off (not watching)' }],
