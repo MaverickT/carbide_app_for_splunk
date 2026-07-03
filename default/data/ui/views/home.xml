@@ -203,7 +203,7 @@
                 </format>
                 <drilldown>
                     <condition field="entity">
-                        <link target="_blank">entity?entity_key=$click.value|u$</link>
+                        <link target="_blank">entity?entity_key=$click.value2|u$</link>
                     </condition>
                 </drilldown>
             </table>
@@ -234,7 +234,7 @@
                 <option name="count">15</option>
                 <drilldown>
                     <condition field="entity">
-                        <link target="_blank">entity?entity_key=$click.value|u$</link>
+                        <link target="_blank">entity?entity_key=$click.value2|u$</link>
                     </condition>
                 </drilldown>
             </table>

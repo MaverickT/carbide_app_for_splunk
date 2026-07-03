@@ -109,7 +109,7 @@
                 <option name="count">50</option>
                 <drilldown>
                     <condition field="entity">
-                        <link target="_blank">entity?entity_key=$click.value|u$</link>
+                        <link target="_blank">entity?entity_key=$click.value2|u$</link>
                     </condition>
                 </drilldown>
                 <format type="color" field="transition">
@@ -174,7 +174,7 @@
                 <option name="count">30</option>
                 <drilldown>
                     <condition field="entity">
-                        <link target="_blank">entity?entity_key=$click.value|u$</link>
+                        <link target="_blank">entity?entity_key=$click.value2|u$</link>
                     </condition>
                 </drilldown>
                 <format type="color" field="status">
