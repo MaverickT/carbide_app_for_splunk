@@ -125,7 +125,9 @@
                     <query>
                         | sort 0 entity_key, _time
                         | streamstats current=false last(_time) as prev_time, last(status) as prev_status by entity_key
-                        | eval window_start = coalesce(relative_time(now(), "$time_tok.earliest$"), tonumber("$time_tok.earliest$"))
+                        | addinfo
+                        | eval window_start = coalesce(info_min_time, 0)
+                        | fields - info_min_time, info_max_time, info_sid, info_search_time
                         | eval dwell_start  = coalesce(prev_time, window_start)
                         | eval dwell_status = coalesce(prev_status, coalesce(previous_status,"NEW"))
                         | eval dwell_seconds = _time - dwell_start
