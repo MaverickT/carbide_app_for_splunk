@@ -572,7 +572,7 @@
                 { key: 'maintenance_until',   label: 'Snoozed until', edit: { type: 'snooze' },
                   render: function (r) { return fmtUntil(r.maintenance_until); },
                   title: function (r) { return fmtTs(r.maintenance_until); } },
-                { key: 'last_event_time',     label: 'Last event', render: function (r) { return fmtTs(r.last_event_time); } },
+                { key: 'last_event_time',     label: 'Last event / discovered', render: function (r) { return fmtTs(r.last_event_time); } },
                 { key: 'maintenance_from',    label: 'Snooze from', detail: true, edit: { type: 'snooze' },
                   render: function (r) { return Number(r.maintenance_from) ? fmtTs(r.maintenance_from) : '-'; } },
                 { key: 'tracking_mode',       label: 'Grouped by', detail: true,
