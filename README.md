@@ -7,18 +7,19 @@ required.
 
 ## Quick start (5 minutes)
 
-1. **Create index** `carbide` or any other custom index according to your 
-   custom naming scheme, but then update macro ``carbide_index`` 
-1. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
+1. **Create the index.** Make an index named `carbide` (the app does
+   not ship one). To use a different name, create it under your own
+   name and point the `carbide_index` macro at it.
+2. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
    and restart Splunk.
-2. **Open** the app — you'll land on a 3-step Welcome page.
-3. **Run discovery once.** In Settings > Searches, run
+3. **Open** the app — you'll land on a 3-step Welcome page.
+4. **Run discovery once.** In Settings > Searches, run
    *Carbide - Discover hosts (recommended)* and
    *Carbide - Discover sourcetypes (recommended)*.
-4. **Pick what to watch.** Open *Manage entities*, filter on what
+5. **Pick what to watch.** Open *Manage entities*, filter on what
    matters, click **Start watching** in the quick actions row — or set
    up *Auto-watch rules* so future discoveries onboard themselves.
-5. **Wait one cycle (5 min)** and refresh the Home page — health is
+6. **Wait one cycle (5 min)** and refresh the Home page — health is
    live, alerts are armed. Wire alert actions in Settings > Searches
    on the two alert saved searches (Hosts, Sources) when you're ready.
 
@@ -134,9 +135,23 @@ the snapshot uses, just dispatched on demand.
 $SPLUNK_HOME/etc/apps/carbide_app_for_splunk/
 ```
 
-On indexers (distributed deployments), also deploy `default/indexes.conf`
-or the equivalent in a separate indexes app, so the `carbide` index
-exists.
+**The app does not ship an `indexes.conf`** — you must create the
+`carbide` index yourself (an outage monitor shouldn't dictate your
+indexing/retention policy, and in distributed deployments index
+definitions belong on the indexer tier, not the search-head app).
+Create an index named `carbide` (or any name, then point the
+`carbide_index` macro at it) on the appropriate tier — on the indexers
+in a distributed deployment, or locally on a standalone search head.
+Example `indexes.conf` stanza:
+
+```
+[carbide]
+homePath   = $SPLUNK_DB/carbide/db
+coldPath   = $SPLUNK_DB/carbide/colddb
+thawedPath = $SPLUNK_DB/carbide/thaweddb
+# ~90 days is plenty; the index holds only transitions + hourly heartbeats
+frozenTimePeriodInSecs = 7776000
+```
 
 Restart Splunk (KV-store collections register on first load). On the
 search head, open the **Carbide for Splunk** app and:
@@ -346,8 +361,8 @@ To change the destination index name:
 
 1. Edit the `carbide_index` macro (Settings > Advanced search > Search
    macros) to the new name.
-2. Update `default/indexes.conf` (or `local/indexes.conf` on indexers)
-   so an index with the new name exists.
+2. Make sure an index with that name exists on the relevant tier
+   (indexers, or a standalone search head) — the app does not create it.
 3. Restart Splunk.
 
 ## Splunk Enterprise Security integration
@@ -438,9 +453,10 @@ splunk apply shcluster-bundle \
 
 The bundle replicates `default/` to every member.
 
-On the indexer tier, install `default/indexes.conf` separately (it is
-only honored by indexers). For a clustered indexer tier, deploy via the
-cluster master.
+Create the `carbide` index on the indexer tier separately (index
+definitions are only honored by indexers, and the app doesn't ship one
+— see Installation). For a clustered indexer tier, deploy the index
+definition via the cluster manager.
 
 ### Operating notes on SHC
 
@@ -481,7 +497,6 @@ carbide_app_for_splunk/
 │   ├── eventtypes.conf
 │   ├── tags.conf
 │   ├── props.conf             carbide:status sourcetype parsing
-│   ├── indexes.conf           Dedicated `carbide` index (install on indexers)
 │   └── data/ui/
 │       ├── nav/default.xml
 │       └── views/
