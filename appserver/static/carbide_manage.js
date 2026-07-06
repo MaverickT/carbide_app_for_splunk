@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-06.17';
+    var VERSION = '2026-07-06.19';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -113,7 +113,7 @@
     ['monitored', 'max_latency_seconds', 'max_gap_seconds', 'min_volume_pct',
      'baseline_epc', 'first_seen', 'last_updated', 'last_event_time',
      'last_latency', 'maintenance_from', 'maintenance_until',
-     'watch', 'recurring', 'reviewed'].forEach(function (f) { NUMERIC_FIELDS[f] = 1; });
+     'watch', 'recurring', 'reviewed', 'offhours_grace_seconds', 'on_hours_since'].forEach(function (f) { NUMERIC_FIELDS[f] = 1; });
 
     function toCsv(rows, fields) {
         function esc(v) {
@@ -549,6 +549,7 @@
         DOWN:      { label: '✗ Missing data',      cls: 'down' },
         CRITICAL:  { label: '✗ Missing + delayed', cls: 'critical' },
         LOW_VOLUME:{ label: '📉 Low volume',   cls: 'lowvol' },
+        SETTLING:  { label: '🌅 Settling',     cls: 'settling' },
         MAINT:     { label: '🔧 Snoozed',     cls: 'maint' },
         OFF_HOURS: { label: '🌙 Off-hours',   cls: 'offhours' },
         NEW:       { label: '⏳ Waiting for first check', cls: 'new' }
@@ -744,6 +745,9 @@
                   render: function (r) { return Number(r.maintenance_from) ? fmtTs(r.maintenance_from) : '-'; } },
                 { key: 'tracking_mode',       label: 'Grouped by', detail: true,
                   edit: axis === 'host' ? { type: 'select', options: HOST_TRACKING_MODES } : undefined },
+                { key: 'offhours_grace_seconds', label: 'Grace after reopen', detail: true, edit: { type: 'duration' },
+                  render: function (r) { return Number(r.offhours_grace_seconds) > 0 ? fmtDur(r.offhours_grace_seconds) : 'default'; },
+                  title: function (r) { return 'Only affects weekdays/business_hours entities. Blank/0 = the global default. Grace held after the schedule reopens before a stale gap fires.'; } },
                 { key: 'first_seen',          label: 'First seen', detail: true, render: function (r) { return fmtTs(r.first_seen); } },
                 { key: 'last_updated',        label: 'Last updated', detail: true, render: function (r) { return fmtTs(r.last_updated); } },
                 { key: 'notes',               label: 'Notes', detail: true, edit: { type: 'text' } }
@@ -775,6 +779,7 @@
                  { value: 'MAINT', label: 'Snoozed' },
                  { value: 'OFF_HOURS', label: 'Off-hours' },
                  { value: 'LOW_VOLUME', label: 'Low volume' },
+                 { value: 'SETTLING', label: 'Settling (schedule just reopened)' },
                  { value: 'NEW', label: 'Waiting for first check' },
                  { value: 'UNWATCHED', label: 'Not watched' },
                  { value: '__STALE__', label: 'Stale (no events 30d+)' }],
@@ -836,7 +841,7 @@
                 var fields = ['_key', '_collection', 'entity_key', 'tracking_mode', 'index', 'host', 'source', 'sourcetype',
                               'monitored', 'monitoring_schedule', 'max_gap_seconds', 'max_latency_seconds', 'min_volume_pct',
                               'maintenance_from', 'maintenance_until', 'tags', 'notes',
-                              'reviewed', 'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'first_seen', 'last_updated'];
+                              'reviewed', 'offhours_grace_seconds', 'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'on_hours_since', 'first_seen', 'last_updated'];
                 downloadCsv('carbide_entities.csv', toCsv(rows, fields));
             }));
             actions.appendChild(btn('⬆ Import CSV', null, function () {
@@ -1538,7 +1543,7 @@
             render();
             var earliest = '-' + state.days + 'd@d';
             var gridSpl = 'search index=`carbide_index` sourcetype="carbide:status"' +
-                ' | eval sev = case(status="CRITICAL" OR status="DOWN", 3, status="LATE" OR status="LOW_VOLUME", 2, status="MAINT" OR status="OFF_HOURS", 1, 1=1, 0)' +
+                ' | eval sev = case(status="CRITICAL" OR status="DOWN", 3, status="LATE" OR status="LOW_VOLUME", 2, status="MAINT" OR status="OFF_HOURS" OR status="SETTLING", 1, 1=1, 0)' +
                 ' | bin _time span=1d' +
                 ' | eval day = strftime(_time, "%Y-%m-%d")' +
                 ' | stats max(sev) as sev by entity_key, day';
@@ -1710,6 +1715,9 @@
             cfg.appendChild(kvRow('Alert if volume below',
                 Number(row.min_volume_pct) > 0 ? row.min_volume_pct + '% of normal' : 'off (0)',
                 { key: 'min_volume_pct', label: 'Alert if volume below (%)', edit: { type: 'number', min: 0 } }));
+            cfg.appendChild(kvRow('Grace after schedule reopens',
+                Number(row.offhours_grace_seconds) > 0 ? fmtDur(row.offhours_grace_seconds) : 'global default',
+                { key: 'offhours_grace_seconds', label: 'Grace after reopen', edit: { type: 'duration' } }));
             cfg.appendChild(kvRow('Snooze from', Number(row.maintenance_from) ? fmtTs(row.maintenance_from) : '-',
                 { key: 'maintenance_from', label: 'Snooze from', edit: { type: 'snooze' } }));
             cfg.appendChild(kvRow('Snoozed until', fmtUntil(row.maintenance_until),

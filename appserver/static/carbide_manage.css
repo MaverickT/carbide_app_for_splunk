@@ -274,7 +274,7 @@
     white-space: nowrap;
 }
 .carbide-version::after {
-    content: " · css v7";
+    content: " · css v8";
     color: #5a6470;
 }
 
@@ -390,3 +390,7 @@
 .carbide-availtable tbody tr td.carbide-day-warn  { background: #6b5416; }
 .carbide-availtable tbody tr td.carbide-day-bad   { background: #6e2019; }
 .carbide-availtable tbody tr td.carbide-day-na    { background: #131517; }
+
+/* settling status (schedule just reopened, grace window) */
+.carbide-chip-settling { background: #3a2f14; color: #e0b877; }
+.carbide-seg-settling  { background: #b8934a; }

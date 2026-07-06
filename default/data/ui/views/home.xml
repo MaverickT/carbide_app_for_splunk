@@ -200,7 +200,7 @@
                 <option name="rowNumbers">false</option>
                 <option name="count">25</option>
                 <format type="color" field="status">
-                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"📉 Low volume":#c47a2e,"⏳ Waiting for first check":#888888}</colorPalette>
+                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"📉 Low volume":#c47a2e,"🌅 Settling":#b8934a,"⏳ Waiting for first check":#888888}</colorPalette>
                 </format>
                 <drilldown>
                     <condition field="entity">
