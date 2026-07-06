@@ -7,16 +7,23 @@ required.
 
 ## Quick start (5 minutes)
 
-1. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
+1. **Create the index.** Make an index named `carbide` (the app does
+   not ship one). To use a different name, create it under your own name
+   and point the `carbide_index` macro at it.
+2. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
    and restart Splunk.
 3. **Open** the app — you'll land on a 3-step Welcome page.
-4. **Run discovery once.** In Settings > Searches, run
+4. **Optionally configure** before discovering: **Manage > Entity
+   Filters** to keep noisy axes out, and **Manage > Auto-watch rules**
+   to auto-onboard matching entities the moment they're discovered.
+5. **Run discovery once.** In Settings > Searches, run
    *Carbide - Discover hosts (recommended)* and
-   *Carbide - Discover sourcetypes (recommended)*.
-5. **Pick what to watch.** Open *Manage entities*, filter on what
-   matters, click **Start watching** in the quick actions row — or set
-   up *Auto-watch rules* so future discoveries onboard themselves.
-6. **Wait one cycle (5 min)** and refresh the Home page — health is
+   *Carbide - Discover sourcetypes (recommended)* (they also run every
+   4 hours on their own).
+6. **Pick what to watch.** Open *Manage entities*, filter on what
+   matters, click **Start watching** in the quick actions row — or rely
+   on your auto-watch rules.
+7. **Wait one cycle (5 min)** and refresh the Home page — health is
    live, alerts are armed. Wire alert actions in Settings > Searches
    on the two alert saved searches (Hosts, Sources) when you're ready.
 
@@ -67,8 +74,8 @@ Carbide is deliberately small and opinionated:
   "contains" match — same for the free-text entity search boxes.
 - **Threshold suggestions** dashboard: 7-day P95 latency × 1.5 and
   average interval × 5 are proposed per entity; "Apply suggested ... to
-  filtered rows" pushes the proposals to every row matching the current
-  filter in chunked batch writes.
+  shown rows" pushes the proposals to every row currently shown in
+  chunked batch writes.
 - **Two alerts (Hosts, Sources)** firing on DOWN / LATE / CRITICAL /
   LOW_VOLUME. Each ships a fixed notable `severity` (`high` for hosts,
   `medium` for sources — Splunk requires a literal enum value here, not
@@ -96,7 +103,8 @@ Carbide is deliberately small and opinionated:
   enabled at once). Default rules ship as a seed CSV that's preserved
   across upgrades.
 - **Dedicated `carbide` index** for history & trending (name is
-  configurable via the `carbide_index` macro).
+  configurable via the `carbide_index` macro; you create the index —
+  the app does not ship an `indexes.conf`).
 - **Change-only history**: snapshots only `| collect` an event when the
   status differs from the previously persisted state; KV writeback is
   also gated on (status changed OR `last_event_time` advanced). A
@@ -104,7 +112,8 @@ Carbide is deliberately small and opinionated:
   anchored.
 - **Self-test panel** verifies every collection, the entity-filter
   macro, the dedicated index and the saved searches in one glance.
-- **Alerts** for DOWN / LATE / CRITICAL ship with sensible suppression.
+- **Alerts** for DOWN / LATE / CRITICAL / LOW_VOLUME ship with sensible
+  per-entity suppression (30 min).
 
 ## Status model
 
@@ -180,14 +189,15 @@ preset:
 | `weekdays`        | Mon-Fri only. Weekends + holidays = `🌙 Off-hours`.          |
 | `business_hours`  | Mon-Fri within `business_hours_start` / `business_hours_end`. Outside that window = `🌙 Off-hours`. |
 
-Outside the active window the entity reports status `OFF_HOURS`. Alerts,
-the ES risk search, and the hourly heartbeat all skip OFF_HOURS rows.
-The snapshot saved searches still update the KV row's `last_status` so
-the live view stays honest, but transitions into and out of OFF_HOURS
-are **not** indexed (keeps the carbide index focused on real outages).
-An entity returning from OFF_HOURS *into a non-OK state* (e.g. Monday
-08:00 and the data source is already broken) **is** logged — you don't
-miss real Monday-morning incidents.
+Outside the active window the entity reports status `OFF_HOURS`. Alerts
+(and the risk action they carry) and the hourly heartbeat all skip
+OFF_HOURS rows. The snapshot saved searches still update the KV row's
+`last_status` so the live view stays honest, but transitions into and
+out of OFF_HOURS (and the `SETTLING` grace state below) are **not**
+indexed — keeping the carbide index focused on real outages. A feed
+that is genuinely broken when the schedule reopens still surfaces: it
+sits in `SETTLING` for the grace window, then goes DOWN (which **is**
+logged), so you don't miss real Monday-morning incidents.
 
 **Monday-morning grace.** For `weekdays`/`business_hours` entities the
 gap is wall-clock, so at the moment the schedule reopens the accumulated
@@ -233,15 +243,16 @@ window).
 
 ## Maintenance windows
 
-Click the **maint from** or **maint until** cell on any row in Manage >
-Hosts/Sources and pick a duration (`off`, `+15 min`, `+1 hour`, ...,
-`+1 week`). Maintenance is active when
+Click the **Snooze from** or **Snoozed until** cell on any row in
+*Manage entities* and pick a duration (`off`, `+15 min`, `+1 hour`, ...,
+`+1 week`) — or use the **🔧 Snooze 1h / 1d / End snooze** quick-action
+buttons to snooze every filtered (or checked) row at once. A window is
+active when
 `coalesce(maintenance_from,0) <= now() AND maintenance_until > now()` —
 leave `maintenance_from` at `0` (the default) for "starts immediately",
-or set it to a future time to schedule a window ahead of time. The
-status macro reports the entity as `MAINT` for the duration; alerts
-skip MAINT rows automatically. Use the bulk-action toolbar or
-`Threshold Suggestions > Apply` for fleet-wide changes.
+or set it to a future time to schedule a window ahead. The status macro
+reports the entity as `MAINT` for the duration; alerts skip MAINT rows
+automatically. Every entity page also has one-click snooze controls.
 
 ## Tracking modes
 
@@ -276,6 +287,7 @@ and `ek_hst` from the `mvappend` line.
 | Saved search                                       | Schedule    | Default |
 |----------------------------------------------------|-------------|---------|
 | Carbide - Seed Entity Filters                      | hourly      | on      |
+| Carbide - Seed Holidays                            | hourly      | on      |
 | Carbide - Discover hosts (recommended)             | every 4 h   | on      |
 | Carbide - Discover sourcetypes (recommended)       | every 4 h   | on      |
 | Carbide - Status Snapshot: Hosts                   | every 5 min | on      |
@@ -283,6 +295,12 @@ and `ek_hst` from the `mvappend` line.
 | Carbide - Heartbeat: Non-OK entities               | hourly      | on      |
 | Carbide - Alert: Hosts                             | every 5 min | on      |
 | Carbide - Alert: Sources                           | every 5 min | on      |
+| Carbide - Daily digest: entities needing attention | daily 06:30 | on      |
+
+Shipped **disabled** — enable from Settings > Searches when you want
+them: the three advanced discovery modes (host+sourcetype, host+source,
+index+source), the two stale-entity housekeeping searches, and
+*Carbide - Sync ES asset_lookup_by_str to carbide_assets*.
 
 The **Seed Entity Filters** search is idempotent: it reads the read-only
 CSV at `lookups/carbide_entity_filters_seed.csv` and
@@ -305,7 +323,6 @@ For each tracked entity over `carbide_status_window` (default `-24h@h`):
 
 ```spl
 | tstats max(_time) as last_event_time,
-         max(_indextime) as last_indextime,
          latest(_indextime) as latest_indextime,
          count
   where `carbide_entity_filter("hosts")` AND index!=`carbide_index`
@@ -316,6 +333,10 @@ For each tracked entity over `carbide_status_window` (default `-24h@h`):
 
 then:
 
+- `last_event_time` falls back to the value persisted in the KV row when
+  the window has no events, so a gap **longer** than the 24h window
+  (e.g. a weekly feed with a multi-day `max_gap`) is still measured
+  correctly rather than read as a false DOWN.
 - `current_gap`     = `now() - last_event_time`
 - `current_latency` = `latest_indextime - last_event_time` — the ingest
   delay of the **most recent event**. (tstats only allows
@@ -340,8 +361,9 @@ no `join`, no 50,000-row truncation cap.
 | Collection                | Purpose                                    |
 |---------------------------|--------------------------------------------|
 | `carbide_tracked_hosts`   | One row per tracked host entity.           |
-| `carbide_tracked_sources` | One row per tracked source entity.         |
-| `carbide_entity_filters`  | Per-field/per-type include/exclude rules.  |
+| `carbide_tracked_sources` | One row per tracked source / sourcetype.   |
+| `carbide_entity_filters`  | Per-field/per-scope include/exclude rules. |
+| `carbide_autowatch_rules` | Auto-onboarding rules applied at discovery.|
 | `carbide_assets`          | Per-host criticality / owner / BU.         |
 | `carbide_holidays`        | Holiday calendar for OFF_HOURS checks.     |
 
@@ -364,8 +386,10 @@ To change the destination index name:
 
 ## Splunk Enterprise Security integration
 
-Carbide ships ES integration in four pieces. The first two are always on
-and silently no-op without ES; the second two are opt-in.
+Carbide ships ES integration in four pieces. Notable events, CIM
+alignment, and risk-based alerting are **always on** and silently no-op
+without ES. Asset enrichment works with or without ES — populate it
+manually, or enable the optional ES-sync search.
 
 ### 1. Notable events (no-op without ES)
 Both alerts (`Carbide - Alert: Hosts`, `Carbide - Alert: Sources`) carry
@@ -487,36 +511,48 @@ carbide_app_for_splunk/
 ├── app.manifest               Splunkbase metadata
 ├── default/
 │   ├── app.conf
-│   ├── collections.conf       KV-store collections
+│   ├── collections.conf       6 KV-store collections
 │   ├── transforms.conf        Lookup definitions (KV + seed CSV)
 │   ├── macros.conf            tstats discovery + status + helpers
-│   ├── savedsearches.conf     Seed, discovery, snapshots, heartbeat, alerts
-│   ├── eventtypes.conf
+│   ├── savedsearches.conf     Seed, discovery, snapshots, heartbeat,
+│   │                          alerts, daily digest, housekeeping, ES sync
+│   ├── eventtypes.conf        carbide_cim_alert (CIM tag=alert)
 │   ├── tags.conf
-│   ├── props.conf             carbide:status sourcetype parsing
+│   ├── props.conf             carbide:status sourcetype parsing + CIM
+│   ├── workflow_actions.conf  "Open in Carbide" field action on entity_key
+│   │                          (NOTE: no indexes.conf - you create the index)
 │   └── data/ui/
 │       ├── nav/default.xml
 │       └── views/
 │           ├── home.xml               SimpleXML dashboard
-│           ├── manage_entities.xml    The five Manage views are thin
-│           ├── manage_assets.xml      SimpleXML shells (header + nav)
-│           ├── manage_holidays.xml    hosting one <html> panel that
-│           ├── manage_entity_filters.xml   carbide_manage.js renders
-│           ├── manage_suggestions.xml
-│           ├── settings.xml           SimpleXML dashboard
 │           ├── trends.xml             SimpleXML dashboard
-│           └── alerts.xml             SimpleXML dashboard
+│           ├── alerts.xml             SimpleXML dashboard
+│           ├── settings.xml           SimpleXML dashboard
+│           ├── manage_entities.xml    These 8 views are thin SimpleXML
+│           ├── manage_autowatch.xml   shells (Splunk header + nav) that
+│           ├── manage_assets.xml      each host one <html> panel which
+│           ├── manage_holidays.xml    carbide_manage.js renders from the
+│           ├── manage_entity_filters.xml   KV REST API (data-page routing)
+│           ├── manage_suggestions.xml
+│           ├── availability.xml       heatmap + uptime % (JS-rendered)
+│           └── entity.xml             per-entity drilldown (JS-rendered)
 ├── lookups/
 │   ├── carbide_entity_filters_seed.csv
 │   └── carbide_holidays_seed.csv
 ├── appserver/static/
-│   ├── carbide_manage.js          Manage pages: KV REST client, tables,
-│   │                              inline editing, checkbox bulk actions
-│   ├── carbide_manage.css         Dark styling for the Manage pages
+│   ├── carbide_manage.js          All JS-rendered pages: KV REST client,
+│   │                              tables, inline editing, bulk actions,
+│   │                              CSV, entity page, availability
+│   ├── carbide_manage.css         Dark styling for the JS pages
 │   └── carbide.css                Styling for the SimpleXML dashboards
-├── static/
-│   └── README_icons.txt       Where to drop appIcon*.png for Splunkbase
+├── static/                        App-branding icons (launcher/nav) -
+│   ├── appIcon.png / _2x          MUST live here, not appserver/static/
+│   ├── appIconAlt.png / _2x
+│   ├── appLogo.png / _2x
+│   ├── carbide-512.png            master artwork
+│   └── README_icons.txt
 ├── metadata/default.meta
 ├── README.md
+├── README.txt
 └── LICENSE
 ```
