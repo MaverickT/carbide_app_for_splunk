@@ -274,7 +274,7 @@
     white-space: nowrap;
 }
 .carbide-version::after {
-    content: " · css v4";
+    content: " · css v5";
     color: #5a6470;
 }
 
@@ -337,4 +337,34 @@
     font-size: 11px;
     max-width: 720px;
     color: #aab2ba;
+}
+
+/* --------------------------------------------------------- status timeline */
+
+.carbide-timeline {
+    display: flex;
+    height: 18px;
+    border: 1px solid #2a3540;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 8px 0 2px 0;
+    background: #16181a;
+}
+.carbide-seg { height: 100%; min-width: 1px; }
+.carbide-seg-ok       { background: #53a051; }
+.carbide-seg-late     { background: #f8be34; }
+.carbide-seg-down     { background: #dc4e41; }
+.carbide-seg-critical { background: #9b1d1d; }
+.carbide-seg-maint    { background: #4ea1f2; }
+.carbide-seg-offhours { background: #6c63ff; }
+.carbide-seg-new      { background: #6c7278; }
+.carbide-seg-off      { background: #3a3f44; }
+.carbide-seg-unknown  { background: #2c3034; }
+
+.carbide-timeline-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: #5a6470;
+    margin-bottom: 8px;
 }

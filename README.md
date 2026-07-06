@@ -14,15 +14,18 @@ required.
    *Carbide - Discover hosts (recommended)* and
    *Carbide - Discover sourcetypes (recommended)*.
 4. **Pick what to watch.** Open *Manage entities*, filter on what
-   matters, click **Start watching** in the quick actions row.
+   matters, click **Start watching** in the quick actions row — or set
+   up *Auto-watch rules* so future discoveries onboard themselves.
 5. **Wait one cycle (5 min)** and refresh the Home page — health is
    live, alerts are armed. Wire alert actions in Settings > Searches
    on the two alert saved searches (Hosts, Sources) when you're ready.
 
 That's it. Everything else below is reference. New to the operator
 mental model? Open Home → Manage entities → Alerts. The Manage menu
-holds assets, holidays, entity filters and threshold suggestions;
-Trends and Settings sit alongside.
+holds auto-watch rules, assets, holidays, entity filters and threshold
+suggestions; Trends and Settings sit alongside. Every entity name in
+the app links to its entity page (status, config, history, last
+events).
 
 Carbide is deliberately small and opinionated:
 

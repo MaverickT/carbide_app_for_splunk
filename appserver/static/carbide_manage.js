@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-03.13';
+    var VERSION = '2026-07-06.15';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -361,7 +361,11 @@
             input = select(opts, row[col.key] != null && row[col.key] !== '' ? row[col.key] : first);
             input.className = 'carbide-edit';
         } else if (kind === 'snooze') {
-            input = select(SNOOZE_PRESETS.map(function (p) { return { value: String(p.secs), label: p.label }; }));
+            // Leading neutral choice: blur without picking must NOT commit
+            // (the old default was 'off', which silently ended active
+            // snoozes on a stray click).
+            input = select([{ value: 'keep', label: '(keep as is)' }].concat(
+                SNOOZE_PRESETS.map(function (p) { return { value: String(p.secs), label: p.label }; })));
             input.className = 'carbide-edit';
         } else if (kind === 'duration') {
             input = el('input', 'carbide-edit');
@@ -388,6 +392,7 @@
             if (kind === 'select' && col.edit.numeric) {
                 v = Number(input.value);
             } else if (kind === 'snooze') {
+                if (input.value === 'keep') { onEdit(null); return; }
                 var secs = Number(input.value);
                 v = secs === 0 ? 0 : now() + secs;
             } else if (kind === 'duration') {
@@ -1078,7 +1083,7 @@
 
         var AXES = [
             { id: 'host',   title: 'Hosts - suggestions',   macro: 'carbide_threshold_suggestions_hosts',   collection: 'carbide_tracked_hosts' },
-            { id: 'source', title: 'Sources - suggestions', macro: 'carbide_threshold_suggestions_sources', collection: 'carbide_tracked_sources' }
+            { id: 'source', title: 'Sources & sourcetypes - suggestions', macro: 'carbide_threshold_suggestions_sources', collection: 'carbide_tracked_sources' }
         ];
 
         function filtered(rows) {
@@ -1262,7 +1267,7 @@
             return b;
         }
 
-        function resultsTable(headers, rows, renderCell) {
+        function resultsTable(headers, rows) {
             var wrap = el('div', 'carbide-tablewrap');
             var table = el('table', 'carbide-table');
             var thead = el('thead');
@@ -1365,18 +1370,58 @@
             main.appendChild(eventsBox);
         }
 
+        // Colored 7-day bar: one segment per interval between recorded
+        // events (the segment carries the status that was IN EFFECT during
+        // it), extended to "now" with the latest status. Gray = before the
+        // first recorded event (status unknown).
+        function buildTimeline(rows) {
+            var winStart = (now() - 7 * 86400) * 1000;
+            var winEnd = Date.now();
+            var span = winEnd - winStart;
+            var bar = el('div', 'carbide-timeline');
+            function seg(from, to, status, hint) {
+                if (to <= from) return;
+                var meta = STATUS_META[status];
+                var d = el('div', 'carbide-seg carbide-seg-' + (meta ? meta.cls : 'unknown'));
+                d.style.width = ((to - from) / span * 100) + '%';
+                d.title = (meta ? meta.label : (status || 'unknown')) +
+                          ': ' + fmtTs(from / 1000) + ' → ' + fmtTs(to / 1000) +
+                          ' (' + fmtDur((to - from) / 1000) + ')' + (hint ? ' - ' + hint : '');
+                bar.appendChild(d);
+            }
+            var pts = rows.map(function (r) {
+                return { t: Date.parse(r._time), status: r.status };
+            }).filter(function (p) { return !isNaN(p.t) && p.t >= winStart; });
+            if (!pts.length) {
+                seg(winStart, winEnd, entityStatus(row), 'no recorded changes in this window');
+            } else {
+                seg(winStart, pts[0].t, rows[0].previous_status || 'unknown', 'before first recorded event');
+                for (var i = 0; i < pts.length; i++) {
+                    seg(pts[i].t, i + 1 < pts.length ? pts[i + 1].t : winEnd, pts[i].status);
+                }
+            }
+            var wrap = el('div');
+            wrap.appendChild(bar);
+            var axis = el('div', 'carbide-timeline-axis');
+            axis.appendChild(el('span', null, fmtTs(winStart / 1000)));
+            axis.appendChild(el('span', null, 'now'));
+            wrap.appendChild(axis);
+            return wrap;
+        }
+
         function loadHistory() {
             historyBox.textContent = '';
             historyBox.appendChild(el('h3', 'carbide-h3', 'Status history (7 days: transitions + hourly non-OK heartbeats)'));
             historyBox.appendChild(el('div', 'carbide-loading', 'Searching the carbide index…'));
             var spl = 'search index=`carbide_index` sourcetype="carbide:status" entity_key=' + splQuote(row.entity_key) +
-                      ' | sort - _time | head 50' +
+                      ' | sort 0 _time' +
                       ' | eval when = strftime(_time, "%Y-%m-%d %H:%M:%S")' +
                       ' | eval kind = if(event_kind == "heartbeat", "heartbeat", "transition")' +
-                      ' | table when, kind, previous_status, status, current_gap, current_latency';
+                      ' | table _time, when, kind, previous_status, status, current_gap, current_latency';
             oneshot(spl, '-7d@h', 'now').then(function (rows) {
                 historyBox.textContent = '';
                 historyBox.appendChild(el('h3', 'carbide-h3', 'Status history (7 days: transitions + hourly non-OK heartbeats)'));
+                historyBox.appendChild(buildTimeline(rows));
                 historyBox.appendChild(resultsTable([
                     { key: 'when', label: 'When' },
                     { key: 'kind', label: 'Kind' },
@@ -1384,7 +1429,7 @@
                     { key: 'status', label: 'To / status' },
                     { key: 'current_gap', label: 'Gap (s)' },
                     { key: 'current_latency', label: 'Delay (s)' }
-                ], rows));
+                ], rows.slice(-50).reverse()));
             }).catch(function (e) {
                 historyBox.appendChild(el('div', 'carbide-error', 'History search failed: ' + e.message));
             });
@@ -1399,6 +1444,10 @@
                 var v = row[f];
                 if (v != null && v !== '' && v !== '*') terms.push(f + '=' + splQuote(v));
             });
+            // Without a positive index term Splunk searches only the role's
+            // DEFAULT indexes (same trap as the entity-filter live bug) -
+            // entities tracked with index="*" must explicitly say index=*.
+            if (!terms.some(function (s) { return s.indexOf('index=') === 0; })) terms.unshift('index=*');
             var spl = 'search ' + terms.join(' ') +
                       ' | sort - _time | head 20' +
                       ' | eval when = strftime(_time, "%Y-%m-%d %H:%M:%S")' +

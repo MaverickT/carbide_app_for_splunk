@@ -10,12 +10,17 @@
                 <latest>now</latest>
             </default>
         </input>
+        <!-- The choice VALUE is a full search clause inserted verbatim into
+             the base search: indexed events only carry entity_type=host|source,
+             so "Sourcetypes" vs "Sources" is derived from the entity_key
+             shape (index=...|sourcetype=... vs index=...|source=...). -->
         <input type="dropdown" token="type_tok" searchWhenChanged="true">
             <label>Entity type</label>
-            <choice value="*">Both</choice>
-            <choice value="host">host</choice>
-            <choice value="source">source</choice>
-            <default>*</default>
+            <choice value="entity_type=&quot;*&quot;">Everything</choice>
+            <choice value="entity_type=&quot;host&quot;">Hosts</choice>
+            <choice value="entity_type=&quot;source&quot; entity_key=&quot;*|sourcetype=*&quot;">Sourcetypes</choice>
+            <choice value="entity_type=&quot;source&quot; NOT entity_key=&quot;*|sourcetype=*&quot;">Sources (file paths)</choice>
+            <default>entity_type=&quot;*&quot;</default>
         </input>
     </fieldset>
 
@@ -25,7 +30,7 @@
              entity_type came back NULL). The explicit `fields` list is
              load-bearing - extend it when a panel needs a new field. -->
         <query>
-            index=`carbide_index` sourcetype="carbide:status" entity_type="$type_tok$"
+            index=`carbide_index` sourcetype="carbide:status" $type_tok$
             | fields _time, entity_key, entity_type, status, previous_status, event_kind,
                      current_gap, current_latency, max_latency_seconds, max_gap_seconds,
                      tracking_mode, asset_criticality
