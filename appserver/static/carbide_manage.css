@@ -274,7 +274,7 @@
     white-space: nowrap;
 }
 .carbide-version::after {
-    content: " · css v8";
+    content: " · css v9";
     color: #5a6470;
 }
 
@@ -394,3 +394,25 @@
 /* settling status (schedule just reopened, grace window) */
 .carbide-chip-settling { background: #3a2f14; color: #e0b877; }
 .carbide-seg-settling  { background: #b8934a; }
+
+/* --------------------------------------------------------- discovery preview */
+
+.carbide-preview {
+    background: #14181c;
+    border: 1px solid #2a3540;
+    border-left: 3px solid #4ea1f2;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+}
+.carbide-preview-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+.carbide-preview-head strong { color: #d8dee4; align-self: center; }
+.carbide-preview-out { margin-top: 10px; }
+.carbide-preview-out:empty { margin-top: 0; }
+
+.carbide-table td.carbide-cell-na { color: #5a6470; font-style: italic; }

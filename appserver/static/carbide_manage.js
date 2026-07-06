@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-06.19';
+    var VERSION = '2026-07-06.20';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -423,6 +423,16 @@
 
             cols.forEach(function (c) {
                 var td = el('td');
+                // A cell can be marked not-applicable for this row (e.g. a
+                // pattern field an auto-watch rule's scope doesn't use):
+                // show a muted placeholder, no edit affordance.
+                var hidden = opts.cellHidden ? opts.cellHidden(r, c.key) : null;
+                if (hidden != null) {
+                    td.className = 'carbide-cell-na';
+                    td.textContent = hidden;
+                    tr.appendChild(td);
+                    return;
+                }
                 var content = c.render ? c.render(r) : (r[c.key] == null ? '' : String(r[c.key]));
                 if (content instanceof Node) td.appendChild(content);
                 else td.textContent = content;
@@ -934,6 +944,9 @@
             var row = change.row, prev = row[change.field];
             row[change.field] = change.value;
             row.last_updated = now();
+            // Keep dependent fields consistent (e.g. editing an auto-watch
+            // rule's scope resets the patterns its new scope doesn't use).
+            if (cfg.normalizeNewDoc) cfg.normalizeNewDoc(row);
             kvSave(cfg.collection, row).then(function () {
                 toast(change.field + ' saved');
                 render();
@@ -951,6 +964,10 @@
                 var intro = el('div', 'carbide-intro');
                 intro.textContent = cfg.intro;
                 root.appendChild(intro);
+            }
+
+            if (cfg.discoveryPreview) {
+                root.appendChild(discoveryPreviewSection(cfg.discoveryPreview === 'autowatch'));
             }
 
             var bar = el('div', 'carbide-filters');
@@ -998,6 +1015,7 @@
                     doc[f.key] = f.numeric ? Number(v) : String(v).trim();
                 });
                 if (formErr) { toast(formErr, 'err'); return; }
+                if (cfg.normalizeNewDoc) cfg.normalizeNewDoc(doc);
                 var err = cfg.validate && cfg.validate(doc);
                 if (err) { toast(err, 'err'); return; }
                 kvCreate(cfg.collection, doc).then(function (resp) {
@@ -1011,9 +1029,17 @@
             var form = el('div', 'carbide-actions carbide-addform');
             form.appendChild(el('span', 'carbide-actions-title', cfg.addTitle));
             cfg.addForm.forEach(function (f) {
+                // A field can be hidden for the current add-form state (e.g. a
+                // pattern the chosen auto-watch scope doesn't use).
+                if (cfg.addFieldVisible && !cfg.addFieldVisible(f.key, state.add)) return;
                 var control;
                 if (f.options) {
-                    control = select(f.options, addValue(f), function (v) { state.add[f.key] = v; });
+                    control = select(f.options, addValue(f), function (v) {
+                        state.add[f.key] = v;
+                        // A "controlling" field (e.g. the scope) re-renders the
+                        // form so field visibility updates with it.
+                        if (f.key === cfg.controllingField) render();
+                    });
                 } else {
                     control = textInput(addValue(f), f.placeholder, null);
                     control.addEventListener('input', function () { state.add[f.key] = control.value; });
@@ -1048,6 +1074,7 @@
                         render();
                     }).catch(function (e) { toast('delete failed: ' + e.message, 'err'); });
                 },
+                cellHidden: cfg.cellHidden,
                 emptyText: cfg.emptyText
             }));
         }
@@ -1066,6 +1093,91 @@
 
         render();
         load();
+    }
+
+    // ---------------------------------------------------------------- discovery preview
+    //
+    // Dry-run the discovery searches: show which entities WOULD be
+    // discovered given the current entity filters (and, on the auto-watch
+    // page, which rule would match + what it'd apply) WITHOUT the
+    // outputlookup writeback. Mirrors the discovery bodies in
+    // savedsearches.conf; keep in sync if those change.
+    var DISCOVERY_MODES = [
+        { axis: 'hosts',   mode: 'index_host',      coll: 'carbide_tracked_hosts',   label: 'Hosts by index + host',
+          split: 'index host',      fill: { source: '*', sourcetype: '*' }, ek: '"index=".index."|host=".host' },
+        { axis: 'hosts',   mode: 'host_sourcetype', coll: 'carbide_tracked_hosts',   label: 'Hosts by host + sourcetype (advanced)',
+          split: 'host sourcetype', fill: { index: '*', source: '*' },      ek: '"host=".host."|sourcetype=".sourcetype' },
+        { axis: 'hosts',   mode: 'host_source',     coll: 'carbide_tracked_hosts',   label: 'Hosts by host + source (advanced)',
+          split: 'host source',     fill: { index: '*', sourcetype: '*' },  ek: '"host=".host."|source=".source' },
+        { axis: 'sources', mode: 'index_sourcetype', coll: 'carbide_tracked_sources', label: 'Sourcetypes by index + sourcetype',
+          split: 'index sourcetype', fill: { source: '*' },                 ek: '"index=".index."|sourcetype=".sourcetype' },
+        { axis: 'sources', mode: 'index_source',    coll: 'carbide_tracked_sources', label: 'Sources by index + source (advanced)',
+          split: 'index source',    fill: { sourcetype: '*' },              ek: '"index=".index."|source=".source' }
+    ];
+
+    function previewSpl(m, withAutowatch) {
+        var spl = '| `carbide_discover(' + m.axis + ', ' + m.mode + ', ' + m.split + ')`';
+        spl += ' | eval event_count=count';   // the macro emits `count`
+        Object.keys(m.fill).forEach(function (k) { spl += ' | eval ' + k + '="' + m.fill[k] + '"'; });
+        spl += ' | eval entity_key=' + m.ek;
+        spl += ' | lookup ' + m.coll + '_lookup entity_key OUTPUT _key as _existing';
+        spl += ' | eval state=if(isnotnull(_existing),"already tracked","would ADD")';
+        var cols = ['entity_key', 'state'];
+        if (withAutowatch) {
+            spl += ' | eval _scope_key="' + m.axis + '|' + m.mode + '"';
+            spl += ' | lookup carbide_autowatch_lookup scope_pattern AS _scope_key,' +
+                   ' index_pattern AS index, host_pattern AS host, source_pattern AS source, sourcetype_pattern AS sourcetype' +
+                   ' OUTPUT rule_name AS matched_rule, watch AS r_watch, monitoring_schedule AS r_sched,' +
+                   ' max_gap_seconds AS r_gap, max_latency_seconds AS r_lat, min_volume_pct AS r_vol';
+            spl += ' | eval matched_rule=coalesce(matched_rule,"— none (app defaults) —")';
+            spl += ' | eval would_watch=case(isnull(r_watch),"no (default)", r_watch=1,"YES", 1=1,"no (settings only)")';
+            cols = cols.concat(['matched_rule', 'would_watch', 'r_sched', 'r_gap', 'r_lat', 'r_vol']);
+        }
+        cols = cols.concat(['index', 'host', 'source', 'sourcetype', 'event_count']);
+        spl += ' | sort 0 - event_count | head 300 | table ' + cols.join(', ');
+        return spl;
+    }
+
+    function discoveryPreviewSection(withAutowatch) {
+        var wrap = el('div', 'carbide-preview');
+        var head = el('div', 'carbide-preview-head');
+        head.appendChild(el('strong', null, '🔍 Preview discovery (dry run — nothing is written)'));
+        var modes = DISCOVERY_MODES;
+        var sel = select(modes.map(function (m, i) { return { value: String(i), label: m.label }; }), '0');
+        head.appendChild(labeled('Mode', sel));
+        var out = el('div', 'carbide-preview-out');
+        var runBtn = btn('Run preview', null, function () {
+            var m = modes[Number(sel.value)];
+            out.textContent = '';
+            out.appendChild(el('div', 'carbide-loading', 'Running ' + m.label + ' over the last 7 days…'));
+            oneshot(previewSpl(m, withAutowatch), '-7d@h', 'now').then(function (rows) {
+                out.textContent = '';
+                out.appendChild(el('div', 'carbide-count',
+                    rows.length + ' entit' + (rows.length === 1 ? 'y' : 'ies') +
+                    ' would be seen by "' + m.label + '" with the current ' +
+                    (withAutowatch ? 'rules' : 'filters') + ' (top 300 by volume)'));
+                var cols = withAutowatch
+                    ? [{ key: 'entity_key', label: 'Entity' }, { key: 'state', label: 'State' },
+                       { key: 'matched_rule', label: 'Matched rule' }, { key: 'would_watch', label: 'Would watch' },
+                       { key: 'r_sched', label: 'Schedule' }, { key: 'r_gap', label: 'Gap(s)' },
+                       { key: 'r_lat', label: 'Latency(s)' }, { key: 'event_count', label: 'Events(7d)' }]
+                    : [{ key: 'entity_key', label: 'Entity' }, { key: 'state', label: 'State' },
+                       { key: 'index', label: 'Index' }, { key: 'host', label: 'Host' },
+                       { key: 'sourcetype', label: 'Sourcetype' }, { key: 'event_count', label: 'Events(7d)' }];
+                out.appendChild(buildTable(cols, {
+                    rows: rows, sort: { key: 'event_count', dir: -1 },
+                    onSort: function () {}, onEdit: function () {},
+                    emptyText: 'Nothing discovered — the current filters exclude everything for this mode, or there is no data in the window.'
+                }));
+            }).catch(function (e) {
+                out.textContent = '';
+                out.appendChild(el('div', 'carbide-error', 'Preview failed: ' + e.message));
+            });
+        });
+        head.appendChild(runBtn);
+        wrap.appendChild(head);
+        wrap.appendChild(out);
+        return wrap;
     }
 
     var FILTER_SCOPES = [
@@ -1094,6 +1206,26 @@
     var AUTOWATCH_SCOPE_LABELS = {};
     AUTOWATCH_SCOPES.forEach(function (s) { AUTOWATCH_SCOPE_LABELS[s.value] = s.label; });
 
+    // Which *_pattern fields actually match anything for a given scope: a
+    // mode-scoped rule only sees the dimensions that mode groups by (the
+    // others are stored as "*" on the entity, so a real pattern there
+    // never matches). Irrelevant fields are hidden and forced to "*".
+    var AUTOWATCH_PATTERN_RELEVANCE = {
+        '*':                 ['index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern'],
+        'hosts|*':           ['index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern'],
+        'sources|*':         ['index_pattern', 'source_pattern', 'sourcetype_pattern'],
+        '*|index_host':      ['index_pattern', 'host_pattern'],
+        '*|host_source':     ['host_pattern', 'source_pattern'],
+        '*|host_sourcetype': ['host_pattern', 'sourcetype_pattern'],
+        '*|index_sourcetype':['index_pattern', 'sourcetype_pattern'],
+        '*|index_source':    ['index_pattern', 'source_pattern']
+    };
+    var AUTOWATCH_PATTERN_FIELDS = ['index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern'];
+    function autowatchRelevant(scope, field) {
+        var rel = AUTOWATCH_PATTERN_RELEVANCE[scope] || AUTOWATCH_PATTERN_FIELDS;
+        return rel.indexOf(field) >= 0;
+    }
+
     var SCHEDULE_OPTIONS = [
         { value: '', label: 'keep default' },
         { value: '247', label: '24/7' },
@@ -1110,6 +1242,25 @@
             sortKey: 'rule_name',
             searchFields: ['rule_name', 'index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern', 'tags', 'notes'],
             clearAfterAdd: ['rule_name', 'index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern', 'tags', 'notes'],
+            discoveryPreview: 'autowatch',
+            controllingField: 'scope_pattern',
+            // Hide pattern fields the chosen scope doesn't use, in the add
+            // form and (as a muted "any") in the table.
+            addFieldVisible: function (key, add) {
+                if (AUTOWATCH_PATTERN_FIELDS.indexOf(key) < 0) return true;
+                return autowatchRelevant(add.scope_pattern || '*', key);
+            },
+            cellHidden: function (row, key) {
+                if (AUTOWATCH_PATTERN_FIELDS.indexOf(key) < 0) return null;
+                return autowatchRelevant(row.scope_pattern || '*', key) ? null : 'any';
+            },
+            // Force irrelevant patterns to "*" so a stale typed value can't
+            // silently stop the rule from matching.
+            normalizeNewDoc: function (doc) {
+                AUTOWATCH_PATTERN_FIELDS.forEach(function (k) {
+                    if (!autowatchRelevant(doc.scope_pattern || '*', k)) doc[k] = '*';
+                });
+            },
             columns: [
                 { key: 'rule_name',          label: 'Rule', edit: { type: 'text', validate: function (v) { if (!v) return 'rule name is required'; } } },
                 { key: 'scope_pattern',      label: 'Applies to', edit: { type: 'select', options: AUTOWATCH_SCOPES },
@@ -1223,6 +1374,7 @@
 
         manage_entity_filters: {
             collection: 'carbide_entity_filters',
+            discoveryPreview: true,
             intro: 'Include/exclude rules on any of index / host / source / sourcetype. Patterns support Splunk wildcards (* and ?). ' +
                    'Scope a rule to a whole axis (hosts / sources / everything), or to ONE discovery mode - that lets two modes on the same axis split the estate: ' +
                    'e.g. include index=netdev* only for "sources by index+source" and exclude index=netdev* only for "sourcetypes by index+sourcetype". ' +
