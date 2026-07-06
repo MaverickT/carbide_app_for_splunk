@@ -16,6 +16,7 @@
                         <li><code>carbide_default_monitoring_schedule</code> — <em>"247"</em>, <em>"weekdays"</em>, or <em>"business_hours"</em> (quotes required)</li>
                         <li><code>carbide_default_business_hours_start</code> — HHMM number, e.g. <em>800</em></li>
                         <li><code>carbide_default_business_hours_end</code> — HHMM number, e.g. <em>1600</em></li>
+                        <li><code>carbide_default_offhours_grace</code> — seconds of grace after a schedule reopens before a stale gap fires; default <em>3600</em> (1h). Overridden per entity.</li>
                     </ul>
                 </div>
             </html>

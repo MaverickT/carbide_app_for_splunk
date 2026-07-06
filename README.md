@@ -7,6 +7,8 @@ required.
 
 ## Quick start (5 minutes)
 
+1. **Create index** `carbide` or any other custom index according to your 
+   custom naming scheme, but then update macro ``carbide_index`` 
 1. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
    and restart Splunk.
 2. **Open** the app — you'll land on a 3-step Welcome page.
@@ -111,6 +113,7 @@ Carbide is deliberately small and opinionated:
 | DOWN      | No events at all within `max_gap_seconds`.                       |
 | CRITICAL  | Both LATE and DOWN — i.e. the trickle that does arrive is stale. |
 | LOW_VOLUME | Events arrive on time but the 24h count fell below `min_volume_pct` % of the learned baseline (opt-in per entity). |
+| SETTLING  | The entity's schedule (weekdays/business_hours) just reopened; DOWN/LATE are held for a grace window so a schedule-idle feed isn't flagged before it can send. |
 | MAINT     | Snoozed by admin (`maintenance_until > now()`); alerts skip it.  |
 | OFF_HOURS | Outside the entity's `monitoring_schedule` window; alerts skip.  |
 | NEW       | Newly discovered and still within `carbide_grace_period`.        |
@@ -169,6 +172,16 @@ are **not** indexed (keeps the carbide index focused on real outages).
 An entity returning from OFF_HOURS *into a non-OK state* (e.g. Monday
 08:00 and the data source is already broken) **is** logged — you don't
 miss real Monday-morning incidents.
+
+**Monday-morning grace.** For `weekdays`/`business_hours` entities the
+gap is wall-clock, so at the moment the schedule reopens the accumulated
+off-hours time would otherwise trip a `max_gap` threshold immediately (a
+Friday-to-Monday feed looks "quiet for 2+ days"). Instead the entity
+enters `SETTLING` for a grace window after the schedule reopens: if
+fresh data arrives it clears to healthy, and only if it stays silent
+past the grace does it go DOWN. The grace is
+`carbide_default_offhours_grace` (default 1h), overridable per entity
+via the **Grace after reopen** field (0/blank = the global default).
 
 Set the per-entity schedule via the **Schedule** column in
 *Manage entities* (dropdown). Use the quick-action toolbar to apply

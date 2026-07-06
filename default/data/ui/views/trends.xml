@@ -51,7 +51,7 @@
                 </search>
                 <option name="charting.chart">column</option>
                 <option name="charting.chart.stackMode">stacked</option>
-                <option name="charting.fieldColors">{"OK":0x53a051,"LATE":0xf8be34,"DOWN":0xdc4e41,"CRITICAL":0x9b1d1d,"MAINT":0x4ea1f2,"OFF_HOURS":0x6c63ff,"LOW_VOLUME":0xc47a2e,"NEW":0x888888}</option>
+                <option name="charting.fieldColors">{"OK":0x53a051,"LATE":0xf8be34,"DOWN":0xdc4e41,"CRITICAL":0x9b1d1d,"MAINT":0x4ea1f2,"OFF_HOURS":0x6c63ff,"LOW_VOLUME":0xc47a2e,"SETTLING":0xb8934a,"NEW":0x888888}</option>
                 <option name="charting.legend.placement">bottom</option>
                 <option name="charting.axisTitleY.text">transition events</option>
             </chart>
@@ -183,7 +183,7 @@
                     </condition>
                 </drilldown>
                 <format type="color" field="status">
-                    <colorPalette type="map">{"OK":#53a051,"LATE":#f8be34,"DOWN":#dc4e41,"CRITICAL":#9b1d1d,"MAINT":#4ea1f2,"OFF_HOURS":#6c63ff,"LOW_VOLUME":#c47a2e,"NEW":#888888}</colorPalette>
+                    <colorPalette type="map">{"OK":#53a051,"LATE":#f8be34,"DOWN":#dc4e41,"CRITICAL":#9b1d1d,"MAINT":#4ea1f2,"OFF_HOURS":#6c63ff,"LOW_VOLUME":#c47a2e,"SETTLING":#b8934a,"NEW":#888888}</colorPalette>
                 </format>
             </table>
         </panel>
