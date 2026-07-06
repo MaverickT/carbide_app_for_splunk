@@ -39,6 +39,12 @@ Carbide is deliberately small and opinionated:
   (an EMA the snapshot maintains; catches sources that keep sending a
   trickle on time while most of the volume is lost). The baseline needs
   a day or two of history before volume alerts arm themselves.
+- **Availability view**: per-entity heatmap (worst recorded state per
+  day) plus dwell-based availability %% and total downtime over 7/30/90
+  days — the management answer to "how reliable is this feed?".
+- **Review queue with dismiss**: Home lists auto-discovered entities
+  awaiting review; "Dismiss from review" (Manage entities) removes ones
+  you deliberately won't watch, without deleting them.
 - **Daily digest email** (fill in `action.email.to` on *Carbide - Daily
   digest*): every morning, one email listing everything currently
   missing, delayed, or below normal volume.

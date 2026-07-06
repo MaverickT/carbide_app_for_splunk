@@ -9,6 +9,7 @@
         <view name="manage_suggestions"    />
     </collection>
     <view name="trends"   />
+    <view name="availability" />
     <view name="alerts"   />
     <view name="settings" />
     <view name="search"   />

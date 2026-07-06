@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-06.16';
+    var VERSION = '2026-07-06.17';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -113,7 +113,7 @@
     ['monitored', 'max_latency_seconds', 'max_gap_seconds', 'min_volume_pct',
      'baseline_epc', 'first_seen', 'last_updated', 'last_event_time',
      'last_latency', 'maintenance_from', 'maintenance_until',
-     'watch', 'recurring'].forEach(function (f) { NUMERIC_FIELDS[f] = 1; });
+     'watch', 'recurring', 'reviewed'].forEach(function (f) { NUMERIC_FIELDS[f] = 1; });
 
     function toCsv(rows, fields) {
         function esc(v) {
@@ -573,7 +573,9 @@
     function statusChip(r) {
         var st = entityStatus(r);
         var meta = STATUS_META[st] || { label: st, cls: 'new' };
-        return el('span', 'carbide-chip carbide-chip-' + meta.cls, meta.label);
+        var label = meta.label;
+        if (st === 'UNWATCHED' && Number(r.reviewed) === 1) label = '– Dismissed';
+        return el('span', 'carbide-chip carbide-chip-' + meta.cls, label);
     }
 
     var ENT_AXES = {
@@ -607,7 +609,8 @@
             var s = q.get('form.status_tok'); if (s) state.status = s;
             var f = q.get('form.search_tok'); if (f) state.search = f;
             var g = q.get('form.tag_tok');    if (g) state.tag = g;
-            var w = q.get('form.watching_tok'); if (w === '1' || w === '0') state.watching = w;
+            var w = q.get('form.watching_tok');
+            if (w === '1' || w === '0' || w === 'awaiting' || w === 'dismissed') state.watching = w;
         })();
 
         function axisRows() {
@@ -636,7 +639,11 @@
             var tag = state.tag.trim().toLowerCase();
             var statuses = state.status === '*' || state.status === '__STALE__' ? null : state.status.split('|');
             return axisRows().filter(function (r) {
-                if (state.watching !== '*' && String(Number(r.monitored) || 0) !== state.watching) return false;
+                if (state.watching === 'awaiting') {
+                    if (Number(r.monitored) === 1 || Number(r.reviewed) === 1) return false;
+                } else if (state.watching === 'dismissed') {
+                    if (Number(r.monitored) === 1 || Number(r.reviewed) !== 1) return false;
+                } else if (state.watching !== '*' && String(Number(r.monitored) || 0) !== state.watching) return false;
                 if (state.status === '__STALE__' && !isStale(r)) return false;
                 if (statuses && statuses.indexOf(rowStatus(r)) < 0) return false;
                 if (tag && !contains(r.tags, tag)) return false;
@@ -695,11 +702,7 @@
         function columns() {
             var axis = state.axis;
             return [
-                { key: 'status',              label: 'Status', sortVal: rowStatus,
-                  render: function (r) {
-                      var meta = STATUS_META[rowStatus(r)] || { label: rowStatus(r), cls: 'new' };
-                      return el('span', 'carbide-chip carbide-chip-' + meta.cls, meta.label);
-                  } },
+                { key: 'status',              label: 'Status', sortVal: rowStatus, render: statusChip },
                 { key: 'monitored',           label: 'Watching', sortVal: function (r) { return Number(r.monitored) || 0; },
                   render: function (r) {
                       var on = Number(r.monitored) === 1;
@@ -758,7 +761,11 @@
                  { value: 'all', label: 'Everything' }],
                 state.axis, function (v) { state.axis = v; render(); })));
             bar.appendChild(labeled('Watching', select(
-                [{ value: '*', label: 'All' }, { value: '1', label: 'On (watching)' }, { value: '0', label: 'Off (not watching)' }],
+                [{ value: '*', label: 'All' },
+                 { value: '1', label: 'On (watching)' },
+                 { value: '0', label: 'Off (not watching)' },
+                 { value: 'awaiting', label: 'Off - awaiting review' },
+                 { value: 'dismissed', label: 'Off - dismissed' }],
                 state.watching, function (v) { state.watching = v; render(); })));
             bar.appendChild(labeled('Status', select(
                 [{ value: '*', label: 'All' },
@@ -790,6 +797,8 @@
                          : 'Quick actions on all ' + pool.length + ' filtered rows (tick rows to narrow)'));
             actions.appendChild(btn('Start watching', null, function () { bulk(function (r) { r.monitored = 1; }, 'Start watching'); }));
             actions.appendChild(btn('Stop watching', 'danger', function () { bulk(function (r) { r.monitored = 0; }, 'Stop watching'); }));
+            actions.appendChild(btn('✓ Dismiss from review', null, function () { bulk(function (r) { r.reviewed = 1; }, 'Dismiss from review'); }));
+            actions.appendChild(btn('↩ Return to review', null, function () { bulk(function (r) { r.reviewed = 0; }, 'Return to review'); }));
             actions.appendChild(el('span', 'carbide-sep'));
             actions.appendChild(btn('🔧 Snooze 1h', null, function () { bulk(function (r) { r.maintenance_until = now() + 3600; }, 'Snooze 1h'); }));
             actions.appendChild(btn('🔧 Snooze 1d', null, function () { bulk(function (r) { r.maintenance_until = now() + 86400; }, 'Snooze 1d'); }));
@@ -827,7 +836,7 @@
                 var fields = ['_key', '_collection', 'entity_key', 'tracking_mode', 'index', 'host', 'source', 'sourcetype',
                               'monitored', 'monitoring_schedule', 'max_gap_seconds', 'max_latency_seconds', 'min_volume_pct',
                               'maintenance_from', 'maintenance_until', 'tags', 'notes',
-                              'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'first_seen', 'last_updated'];
+                              'reviewed', 'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'first_seen', 'last_updated'];
                 downloadCsv('carbide_entities.csv', toCsv(rows, fields));
             }));
             actions.appendChild(btn('⬆ Import CSV', null, function () {
@@ -1396,6 +1405,186 @@
     }
 
     // =============================================================
+    //  PAGE: availability (heatmap + uptime %)
+    // =============================================================
+
+    function availabilityPage() {
+        var state = { days: 30, loaded: false, rows: [], grid: {}, avail: {} };
+
+        var SEV_META = {
+            0: { cls: 'ok',   label: 'no incidents recorded' },
+            1: { cls: 'quiet',label: 'snoozed / off-hours only' },
+            2: { cls: 'warn', label: 'delayed or low volume' },
+            3: { cls: 'bad',  label: 'missing data' }
+        };
+
+        function dayList() {
+            var out = [];
+            var d = new Date();
+            d.setHours(0, 0, 0, 0);
+            for (var i = state.days - 1; i >= 0; i--) {
+                var x = new Date(d.getTime() - i * 86400000);
+                function p(n) { return (n < 10 ? '0' : '') + n; }
+                out.push(x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate()));
+            }
+            return out;
+        }
+
+        function availClass(pct) {
+            if (pct == null) return '';
+            if (pct >= 99.9) return 'carbide-chip-ok';
+            if (pct >= 99)   return 'carbide-chip-late';
+            return 'carbide-chip-down';
+        }
+
+        function render() {
+            root.textContent = '';
+
+            root.appendChild(el('div', 'carbide-intro',
+                'Per-entity availability over the selected window, computed from recorded transitions and heartbeats. ' +
+                'Day cells show the WORST recorded state that day (empty = nothing recorded = presumed healthy while watched); ' +
+                'availability % = time not spent in DOWN/CRITICAL. Watched entities only.'));
+
+            var bar = el('div', 'carbide-filters');
+            bar.appendChild(labeled('Window', select(
+                [{ value: '7', label: 'Last 7 days' }, { value: '30', label: 'Last 30 days' }, { value: '90', label: 'Last 90 days' }],
+                String(state.days), function (v) { state.days = Number(v); load(); })));
+            bar.appendChild(btn('↻ Refresh', null, load));
+            bar.appendChild(versionTag());
+            root.appendChild(bar);
+
+            if (!state.loaded) {
+                root.appendChild(el('div', 'carbide-loading', 'Computing availability… (two searches over the carbide index)'));
+                return;
+            }
+
+            var days = dayList();
+            var rows = state.rows.slice().sort(function (a, b) {
+                var x = state.avail[a.entity_key], y = state.avail[b.entity_key];
+                x = x ? x.availability : 100; y = y ? y.availability : 100;
+                if (x !== y) return x - y;
+                return a.entity_key < b.entity_key ? -1 : 1;
+            });
+
+            root.appendChild(el('div', 'carbide-count',
+                rows.length + ' watched entities - days run oldest → newest, worst recorded state per day'));
+
+            var wrap = el('div', 'carbide-tablewrap');
+            var table = el('table', 'carbide-table carbide-availtable');
+            var htr = el('tr');
+            htr.appendChild(el('th', null, 'Entity'));
+            htr.appendChild(el('th', null, 'Availability'));
+            htr.appendChild(el('th', null, 'Downtime'));
+            days.forEach(function (d, i) {
+                var th = el('th', 'carbide-dayhead', (d.slice(8) === '01' || i === 0) ? d.slice(5) : '');
+                th.title = d;
+                htr.appendChild(th);
+            });
+            var thead = el('thead');
+            thead.appendChild(htr);
+            table.appendChild(thead);
+
+            var tbody = el('tbody');
+            if (!rows.length) {
+                var tr0 = el('tr');
+                var td0 = el('td', 'carbide-empty', 'No watched entities yet.');
+                td0.colSpan = days.length + 3;
+                tr0.appendChild(td0);
+                tbody.appendChild(tr0);
+            }
+            rows.forEach(function (r) {
+                var tr = el('tr');
+                var tdE = el('td');
+                var a = el('a', null, r.entity_key);
+                a.href = 'entity?k=' + encodeURIComponent(r._key || '') + '&c=' + encodeURIComponent(r.__coll || '');
+                tdE.appendChild(a);
+                tr.appendChild(tdE);
+
+                var av = state.avail[r.entity_key];
+                var tdA = el('td');
+                if (av) {
+                    tdA.appendChild(el('span', 'carbide-chip ' + availClass(av.availability), av.availability + '%'));
+                } else {
+                    tdA.appendChild(el('span', 'carbide-chip carbide-chip-new', '100%*'));
+                    tdA.title = 'no events recorded in the window - presumed up while watched';
+                }
+                tr.appendChild(tdA);
+                tr.appendChild(el('td', null, av && av.downtime > 0 ? fmtDur(av.downtime) : '-'));
+
+                var cells = state.grid[r.entity_key] || {};
+                var firstSeenDay = Number(r.first_seen) ? fmtTs(r.first_seen).slice(0, 10) : null;
+                days.forEach(function (d) {
+                    var td = el('td', 'carbide-day');
+                    if (firstSeenDay && d < firstSeenDay) {
+                        td.classList.add('carbide-day-na');
+                        td.title = d + ' - before first seen';
+                    } else {
+                        var sev = cells[d];
+                        var meta = SEV_META[sev === undefined ? 0 : sev];
+                        td.classList.add('carbide-day-' + meta.cls);
+                        td.title = d + ' - ' + meta.label;
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            wrap.appendChild(table);
+            root.appendChild(wrap);
+        }
+
+        function load() {
+            state.loaded = false;
+            render();
+            var earliest = '-' + state.days + 'd@d';
+            var gridSpl = 'search index=`carbide_index` sourcetype="carbide:status"' +
+                ' | eval sev = case(status="CRITICAL" OR status="DOWN", 3, status="LATE" OR status="LOW_VOLUME", 2, status="MAINT" OR status="OFF_HOURS", 1, 1=1, 0)' +
+                ' | bin _time span=1d' +
+                ' | eval day = strftime(_time, "%Y-%m-%d")' +
+                ' | stats max(sev) as sev by entity_key, day';
+            var availSpl = 'search index=`carbide_index` sourcetype="carbide:status"' +
+                ' | sort 0 entity_key, _time' +
+                ' | streamstats current=false last(_time) as prev_time, last(status) as prev_status by entity_key' +
+                ' | addinfo' +
+                ' | eval ws = coalesce(info_min_time, 0)' +
+                ' | eval dwell_start = coalesce(prev_time, ws)' +
+                ' | eval dwell_status = coalesce(prev_status, coalesce(previous_status, "NEW"))' +
+                ' | eval dwell = _time - dwell_start' +
+                ' | eval down = if(dwell > 0 AND (dwell_status="DOWN" OR dwell_status="CRITICAL"), dwell, 0)' +
+                ' | stats sum(down) as downtime, max(_time) as last_t, latest(status) as last_status, min(ws) as ws by entity_key' +
+                ' | eval downtime = downtime + if(last_status="DOWN" OR last_status="CRITICAL", now() - last_t, 0)' +
+                ' | eval availability = max(0, round(100 * (1 - downtime / (now() - ws)), 2))' +
+                ' | table entity_key, availability, downtime';
+            Promise.all([
+                kvList('carbide_tracked_hosts'),
+                kvList('carbide_tracked_sources'),
+                oneshot(gridSpl, earliest, 'now'),
+                oneshot(availSpl, earliest, 'now')
+            ]).then(function (res) {
+                var hosts = (res[0] || []); hosts.forEach(function (r) { r.__coll = 'carbide_tracked_hosts'; });
+                var sources = (res[1] || []); sources.forEach(function (r) { r.__coll = 'carbide_tracked_sources'; });
+                state.rows = hosts.concat(sources).filter(function (r) { return Number(r.monitored) === 1; });
+                state.grid = {};
+                (res[2] || []).forEach(function (c) {
+                    (state.grid[c.entity_key] = state.grid[c.entity_key] || {})[c.day] = Number(c.sev);
+                });
+                state.avail = {};
+                (res[3] || []).forEach(function (a) {
+                    state.avail[a.entity_key] = { availability: Number(a.availability), downtime: Number(a.downtime) || 0 };
+                });
+                state.loaded = true;
+                render();
+            }).catch(function (e) {
+                root.textContent = '';
+                root.appendChild(el('div', 'carbide-error', 'Availability computation failed: ' + e.message));
+            });
+        }
+
+        render();
+        load();
+    }
+
+    // =============================================================
     //  PAGE: entity (detail / drilldown target)
     // =============================================================
 
@@ -1707,6 +1896,7 @@
         var page = root.getAttribute('data-page') || 'manage_entities';
         if (page === 'manage_entities')         entitiesPage();
         else if (page === 'entity')             entityPage();
+        else if (page === 'availability')       availabilityPage();
         else if (page === 'manage_suggestions') suggestionsPage();
         else if (CRUD_PAGES[page])              crudPage(CRUD_PAGES[page]);
         else root.appendChild(el('div', 'carbide-error', 'Unknown page: ' + page));

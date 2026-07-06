@@ -274,7 +274,7 @@
     white-space: nowrap;
 }
 .carbide-version::after {
-    content: " · css v6";
+    content: " · css v7";
     color: #5a6470;
 }
 
@@ -372,3 +372,21 @@
 /* low-volume status */
 .carbide-chip-lowvol { background: #4a2f10; color: #e8a45c; }
 .carbide-seg-lowvol  { background: #c47a2e; }
+
+/* --------------------------------------------------------- availability grid */
+
+.carbide-availtable td.carbide-day,
+.carbide-availtable th.carbide-dayhead {
+    width: 14px;
+    min-width: 14px;
+    padding: 2px;
+}
+.carbide-dayhead { font-size: 9px; color: #5a6470; white-space: nowrap; }
+.carbide-availtable td.carbide-day { border: 1px solid #101214; height: 16px; }
+/* scoped to out-specify the generic striping/hover td rules (same
+   specificity, later in the file = these win) */
+.carbide-availtable tbody tr td.carbide-day-ok    { background: #1f4526; }
+.carbide-availtable tbody tr td.carbide-day-quiet { background: #263445; }
+.carbide-availtable tbody tr td.carbide-day-warn  { background: #6b5416; }
+.carbide-availtable tbody tr td.carbide-day-bad   { background: #6e2019; }
+.carbide-availtable tbody tr td.carbide-day-na    { background: #131517; }

@@ -212,14 +212,14 @@
 
     <row depends="$show_dashboard$">
         <panel>
-            <title>Auto-discovered entities awaiting review (monitored=0)</title>
+            <title>Auto-discovered entities awaiting review (dismiss or start watching in Manage entities)</title>
             <table>
                 <search>
                     <query>
                         | union
                             [ | inputlookup carbide_tracked_hosts_lookup   | eval entity_type="host" ]
                             [ | inputlookup carbide_tracked_sources_lookup | eval entity_type="source" ]
-                        | where monitored=0
+                        | where monitored=0 AND coalesce(reviewed,0)=0
                         | eval first_seen_h = strftime(first_seen,"%Y-%m-%d %H:%M:%S")
                         | sort - first_seen
                         | table entity_type entity_key tracking_mode index host source sourcetype first_seen_h
