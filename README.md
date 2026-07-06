@@ -71,10 +71,14 @@ Carbide is deliberately small and opinionated:
   average interval × 5 are proposed per entity; "Apply suggested ... to
   filtered rows" pushes the proposals to every row matching the current
   filter in chunked batch writes.
-- **Two alerts (Hosts, Sources)** with notable severity/urgency derived
-  per-result from `asset_criticality` (manage assets) — `medium`
-  fallback for unmapped hosts and all sources. ES notable + email
-  actions ship pre-templated; fill in `action.email.to` to enable.
+- **Two alerts (Hosts, Sources)** firing on DOWN / LATE / CRITICAL /
+  LOW_VOLUME. Each ships a fixed notable `severity` (`high` for hosts,
+  `medium` for sources — Splunk requires a literal enum value here, not
+  a per-result token); ES then derives per-asset **urgency** from that
+  severity and the asset's priority, and the RBA risk action +
+  notable description carry the `asset_criticality` signal. ES notable
+  + email actions ship pre-templated; fill in `action.email.to` to
+  enable.
 - **Settings → Audit trail** sources from Splunk's built-in
   `splunkd_access` log, so every KV write under the app is recorded
   automatically without any browser-side audit code.
@@ -354,11 +358,17 @@ and silently no-op without ES; the second two are opt-in.
 ### 1. Notable events (no-op without ES)
 Both alerts (`Carbide - Alert: Hosts`, `Carbide - Alert: Sources`) carry
 `actions = notable,email`. On installs with ES, each match becomes a
-notable event in Incident Review with per-result `severity` / `urgency`
-derived from `asset_criticality` (Manage assets) — `medium` fallback for
-unmapped hosts and all sources. On installs without ES, the notable
-action logs a warning and is skipped — the rest of the alert (including
-email) is unaffected.
+notable event in Incident Review. `severity` is a fixed literal per
+alert (`high` for hosts, `medium` for sources) — Splunk validates this
+param against the enum `informational|low|medium|high|critical|unknown`
+at config time and rejects a per-result token, so it cannot be derived
+per result. ES computes each notable's **urgency** from that severity
+and the affected asset's priority (asset framework), so criticality
+still shapes prioritisation; the RBA risk action and the notable
+description also carry `asset_criticality`. Change the literal in the
+alert if `high`/`medium` don't match your severity scheme. On installs
+without ES, the notable action logs a warning and is skipped — the rest
+of the alert (including email) is unaffected.
 
 ### 2. CIM `Alerts` data model alignment (always on)
 `default/props.conf` ships `FIELDALIAS-cim_*` + `EVAL-*` for the
