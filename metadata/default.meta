@@ -1,5 +1,5 @@
 ###
-### Carbide for Splunk - default permissions
+### Carbide App for Splunk - default permissions
 ###
 ### Defaults shipped with the app. Users can override in metadata/local.meta
 ### through the UI (Settings > All configurations).

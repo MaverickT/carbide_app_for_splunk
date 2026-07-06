@@ -1,4 +1,4 @@
-# Carbide for Splunk
+# Carbide App for Splunk
 
 Lightweight data-source gap & latency monitor for Splunk. Detect when
 hosts, sources or sourcetypes stop reporting; alert when they do. No
@@ -160,7 +160,7 @@ frozenTimePeriodInSecs = 7776000
 ```
 
 Restart Splunk (KV-store collections register on first load). On the
-search head, open the **Carbide for Splunk** app and:
+search head, open the **Carbide App for Splunk** app and:
 
 1. Optionally adjust the bootstrap defaults for newly discovered
    entities by editing the `carbide_default_*` search macros

@@ -1,7 +1,7 @@
 {
     "schemaVersion": "2.0.0",
     "info": {
-        "title": "Carbide for Splunk",
+        "title": "Carbide App for Splunk",
         "id": {
             "group": null,
             "name": "carbide_app_for_splunk",

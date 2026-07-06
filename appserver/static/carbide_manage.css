@@ -1,5 +1,5 @@
 /*
- * Carbide for Splunk - custom HTML views (Manage entities pilot)
+ * Carbide App for Splunk - custom HTML views (Manage entities pilot)
  * Everything scoped under .carbide-page; we own the whole DOM here,
  * so no !important fights with Splunk's theme.
  */

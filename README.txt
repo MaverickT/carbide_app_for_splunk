@@ -1,5 +1,5 @@
-Carbide for Splunk
-==================
+Carbide App for Splunk
+======================
 
 Lightweight data-source gap, latency & volume monitor. See README.md for
 full documentation.
@@ -11,7 +11,7 @@ Quick start:
      search head. To use a different name, point the carbide_index
      macro at it.
   2. Drop this directory into $SPLUNK_HOME/etc/apps/ and restart Splunk.
-  3. Open the "Carbide for Splunk" app on a search head.
+  3. Open the "Carbide App for Splunk" app on a search head.
   4. Let discovery run (every 4 hours) or run it on demand from
      Settings > Searches, reports, and alerts:
      "Carbide - Discover hosts (recommended)" and

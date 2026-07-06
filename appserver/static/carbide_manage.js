@@ -1,5 +1,5 @@
 /**
- * Carbide for Splunk - custom HTML views engine
+ * Carbide App for Splunk - custom HTML views engine
  * ----------------------------------------------
  * One script serves every Manage page. Each view's template
  * (appserver/templates/<view>.html) renders
