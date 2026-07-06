@@ -1,15 +1,18 @@
-App-level icon files referenced from app.manifest belong in this directory.
-Add (binary files; cannot be generated from text):
+App-level icon files. These MUST live in the app-root static/ directory
+(this one), NOT in appserver/static/ - that folder is only for dashboard
+JS/CSS/images and Splunk does not look there for the launcher icon. They
+were moved here 2026-07-06 because the launcher was showing the default
+icon while they sat in appserver/static/.
 
-    appIcon.png        36x36  PNG, used in the launcher card
+Present in this directory:
+
+    appIcon.png        36x36  PNG, launcher card / app menu
     appIcon_2x.png     72x72  PNG, high-DPI variant
-    appIconAlt.png     36x36  PNG, optional dark-mode variant
-    appIconAlt_2x.png  72x72  PNG, optional dark-mode variant, high-DPI
-
-Splunkbase submission additionally requires:
-
-    appLogo.png        160x40 PNG, used on the app store listing
+    appIconAlt.png     36x36  PNG, alt-context variant
+    appIconAlt_2x.png  72x72  PNG, high-DPI variant
+    appLogo.png        160x40 PNG, app nav bar / store listing
     appLogo_2x.png     320x80 PNG, high-DPI variant
+    carbide-512.png    512x512 master artwork (source for the above)
 
-Until these are added the app installs and runs fine; it just shows the
-default Splunk app icon in the launcher.
+After adding or changing an icon a Splunk restart is usually required
+before it appears - the launcher caches app icons aggressively.
