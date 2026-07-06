@@ -7,10 +7,7 @@ required.
 
 ## Quick start (5 minutes)
 
-1. **Create the index.** Make an index named `carbide` (the app does
-   not ship one). To use a different name, create it under your own
-   name and point the `carbide_index` macro at it.
-2. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
+1. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
    and restart Splunk.
 3. **Open** the app — you'll land on a 3-step Welcome page.
 4. **Run discovery once.** In Settings > Searches, run
