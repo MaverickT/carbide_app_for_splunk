@@ -183,7 +183,8 @@
                         | `carbide_humanize_duration(current_gap)`
                         | `carbide_humanize_duration(current_latency)`
                         | eval entity_label = case(entity_type="host", "host", 1=1, "source")
-                        | sort - case(status="CRITICAL",3, status="DOWN",2, status="LATE",1, 1=1, 0), -current_gap
+                        | eval _sev = case(status="CRITICAL",4, status="DOWN",3, status="LATE",2, status="LOW_VOLUME",1, 1=1, 0)
+                        | sort - _sev, - current_gap
                         | head 25
                         | table status_h, entity_label, entity_key, current_gap_h, current_latency_h, tags
                         | rename

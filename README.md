@@ -23,7 +23,7 @@ required.
 That's it. Everything else below is reference. New to the operator
 mental model? Open Home → Manage entities → Alerts. The Manage menu
 holds auto-watch rules, assets, holidays, entity filters and threshold
-suggestions; Trends and Settings sit alongside. Every entity name in
+suggestions; Trends, Availability and Settings sit alongside. Every entity name in
 the app links to its entity page (status, config, history, last
 events).
 
