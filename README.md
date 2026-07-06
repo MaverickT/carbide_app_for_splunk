@@ -32,9 +32,22 @@ Carbide is deliberately small and opinionated:
 - **Two tracking methods**: HOST entities (`index+host` / `host+source` /
   `host+sourcetype`) and SOURCE entities (`index+source` /
   `index+sourcetype`). Each entity has its own thresholds.
-- **Two thresholds per entity**: `max_latency_seconds` (delay between
-  `_time` and `_indextime`) and `max_gap_seconds` (how long since the
-  last event was generated).
+- **Three thresholds per entity**: `max_latency_seconds` (delay between
+  `_time` and `_indextime`), `max_gap_seconds` (how long since the
+  last event was generated), and opt-in `min_volume_pct` — alert when
+  the 24h event count drops below N% of the entity's learned baseline
+  (an EMA the snapshot maintains; catches sources that keep sending a
+  trickle on time while most of the volume is lost). The baseline needs
+  a day or two of history before volume alerts arm themselves.
+- **Daily digest email** (fill in `action.email.to` on *Carbide - Daily
+  digest*): every morning, one email listing everything currently
+  missing, delayed, or below normal volume.
+- **Stale-entity cleanup**: the Manage entities *Stale* filter surfaces
+  entities silent for 30+ days; bulk *Stop tracking* removes them in
+  one click. Optional disabled housekeeping searches automate it.
+- **CSV export / import** on Manage entities and every rules page —
+  back up, migrate, or bulk-edit in a spreadsheet; rows with `_key`
+  update in place, rows without are created.
 - **`tstats`-only**: discovery and live status calculation never scan
   raw events.
 - **Inline + bulk editing**: cells in the Manage dashboards are
@@ -91,6 +104,7 @@ Carbide is deliberately small and opinionated:
 | LATE      | Events still arriving but ingest latency exceeds `max_latency`.  |
 | DOWN      | No events at all within `max_gap_seconds`.                       |
 | CRITICAL  | Both LATE and DOWN — i.e. the trickle that does arrive is stale. |
+| LOW_VOLUME | Events arrive on time but the 24h count fell below `min_volume_pct` % of the learned baseline (opt-in per entity). |
 | MAINT     | Snoozed by admin (`maintenance_until > now()`); alerts skip it.  |
 | OFF_HOURS | Outside the entity's `monitoring_schedule` window; alerts skip.  |
 | NEW       | Newly discovered and still within `carbide_grace_period`.        |

@@ -179,7 +179,7 @@
                     <query>
                         | `carbide_cached_status`
                         | `carbide_friendly_status`
-                        | search (status="DOWN" OR status="CRITICAL" OR status="LATE")
+                        | search (status="DOWN" OR status="CRITICAL" OR status="LATE" OR status="LOW_VOLUME")
                         | `carbide_humanize_duration(current_gap)`
                         | `carbide_humanize_duration(current_latency)`
                         | eval entity_label = case(entity_type="host", "host", 1=1, "source")
@@ -199,7 +199,7 @@
                 <option name="rowNumbers">false</option>
                 <option name="count">25</option>
                 <format type="color" field="status">
-                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"⏳ Waiting for first check":#888888}</colorPalette>
+                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"📉 Low volume":#c47a2e,"⏳ Waiting for first check":#888888}</colorPalette>
                 </format>
                 <drilldown>
                     <condition field="entity">

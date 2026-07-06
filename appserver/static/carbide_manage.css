@@ -274,7 +274,7 @@
     white-space: nowrap;
 }
 .carbide-version::after {
-    content: " · css v5";
+    content: " · css v6";
     color: #5a6470;
 }
 
@@ -368,3 +368,7 @@
     color: #5a6470;
     margin-bottom: 8px;
 }
+
+/* low-volume status */
+.carbide-chip-lowvol { background: #4a2f10; color: #e8a45c; }
+.carbide-seg-lowvol  { background: #c47a2e; }

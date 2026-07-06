@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-06.15';
+    var VERSION = '2026-07-06.16';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -94,6 +94,117 @@
             if (k.charAt(0) !== '_') out[k] = doc[k];   // _key, _user, our __coll tag
         });
         return out;
+    }
+
+    // Bulk delete: DELETE with a query param removes every matching doc.
+    function kvDeleteKeys(coll, keys) {
+        return chunked(keys).reduce(function (p, c) {
+            return p.then(function () {
+                var q = encodeURIComponent(JSON.stringify({ '$or': c.map(function (k) { return { _key: k }; }) }));
+                return rest('DELETE', kvUrl(coll) + '?query=' + q);
+            });
+        }, Promise.resolve());
+    }
+
+    // ---- CSV export / import -------------------------------------------
+    // Only these field NAMES are coerced to numbers on import (a blanket
+    // "looks numeric" rule would corrupt string fields like patterns).
+    var NUMERIC_FIELDS = {};
+    ['monitored', 'max_latency_seconds', 'max_gap_seconds', 'min_volume_pct',
+     'baseline_epc', 'first_seen', 'last_updated', 'last_event_time',
+     'last_latency', 'maintenance_from', 'maintenance_until',
+     'watch', 'recurring'].forEach(function (f) { NUMERIC_FIELDS[f] = 1; });
+
+    function toCsv(rows, fields) {
+        function esc(v) {
+            var s = v == null ? '' : String(v);
+            return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+        var out = [fields.map(esc).join(',')];
+        rows.forEach(function (r) {
+            out.push(fields.map(function (f) { return esc(r[f]); }).join(','));
+        });
+        return out.join('\r\n');
+    }
+
+    function downloadCsv(name, csv) {
+        var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    }
+
+    function parseCsv(text) {
+        var rows = [], row = [], cur = '', inQ = false;
+        for (var i = 0; i < text.length; i++) {
+            var ch = text[i];
+            if (inQ) {
+                if (ch === '"') {
+                    if (text[i + 1] === '"') { cur += '"'; i++; }
+                    else inQ = false;
+                } else cur += ch;
+            } else if (ch === '"') inQ = true;
+            else if (ch === ',') { row.push(cur); cur = ''; }
+            else if (ch === '\n' || ch === '\r') {
+                if (ch === '\r' && text[i + 1] === '\n') i++;
+                row.push(cur); cur = '';
+                if (row.length > 1 || row[0] !== '') rows.push(row);
+                row = [];
+            } else cur += ch;
+        }
+        if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+        if (!rows.length) return [];
+        var header = rows[0];
+        return rows.slice(1).map(function (r) {
+            var doc = {};
+            header.forEach(function (h, idx) {
+                var v = r[idx];
+                if (v === undefined || v === '') return;
+                doc[h] = NUMERIC_FIELDS[h] && !isNaN(Number(v)) ? Number(v) : v;
+            });
+            return doc;
+        });
+    }
+
+    // Import docs into a collection: rows with _key are upserts, rows
+    // without become new documents. `route(doc)` may return a different
+    // collection per doc (Everything-axis exports carry _collection).
+    function importCsvInto(defaultColl, route, onDone) {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.csv,text/csv';
+        input.addEventListener('change', function () {
+            var f = input.files && input.files[0];
+            if (!f) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+                var docs;
+                try { docs = parseCsv(String(reader.result)); }
+                catch (e) { toast('could not parse CSV: ' + e.message, 'err'); return; }
+                if (!docs.length) { toast('no rows in file', 'err'); return; }
+                var groups = {};
+                docs.forEach(function (d) {
+                    var coll = (route && route(d)) || defaultColl;
+                    delete d._collection;
+                    delete d.__coll;
+                    (groups[coll] = groups[coll] || []).push(d);
+                });
+                var updates = docs.filter(function (d) { return d._key; }).length;
+                if (!confirm('Import ' + docs.length + ' rows (' + updates + ' updates by _key, ' +
+                             (docs.length - updates) + ' new)?')) return;
+                Object.keys(groups).reduce(function (p, coll) {
+                    return p.then(function () { return batchSaveAll(coll, groups[coll]); });
+                }, Promise.resolve()).then(function () {
+                    toast('imported ' + docs.length + ' rows');
+                    if (onDone) onDone();
+                }).catch(function (e) { toast('import failed: ' + e.message, 'err'); });
+            };
+            reader.readAsText(f);
+        });
+        input.click();
     }
 
     function chunked(docs) {
@@ -437,6 +548,7 @@
         LATE:      { label: '⚠ Delayed',           cls: 'late' },
         DOWN:      { label: '✗ Missing data',      cls: 'down' },
         CRITICAL:  { label: '✗ Missing + delayed', cls: 'critical' },
+        LOW_VOLUME:{ label: '📉 Low volume',   cls: 'lowvol' },
         MAINT:     { label: '🔧 Snoozed',     cls: 'maint' },
         OFF_HOURS: { label: '🌙 Off-hours',   cls: 'offhours' },
         NEW:       { label: '⏳ Waiting for first check', cls: 'new' }
@@ -513,12 +625,19 @@
         // entityStatus() shows them as "Not watched" instead.
         function rowStatus(r) { return entityStatus(r); }
 
+        var STALE_SECS = 30 * 86400;   // keep in sync with carbide_stale_after_seconds
+        function isStale(r) {
+            var last = Number(r.last_event_time) || Number(r.first_seen) || 0;
+            return last > 0 && (now() - last) > STALE_SECS;
+        }
+
         function filtered() {
             var needle = state.search.trim().toLowerCase();
             var tag = state.tag.trim().toLowerCase();
-            var statuses = state.status === '*' ? null : state.status.split('|');
+            var statuses = state.status === '*' || state.status === '__STALE__' ? null : state.status.split('|');
             return axisRows().filter(function (r) {
                 if (state.watching !== '*' && String(Number(r.monitored) || 0) !== state.watching) return false;
+                if (state.status === '__STALE__' && !isStale(r)) return false;
                 if (statuses && statuses.indexOf(rowStatus(r)) < 0) return false;
                 if (tag && !contains(r.tags, tag)) return false;
                 if (needle) {
@@ -607,6 +726,13 @@
                 { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' },
                   render: function (r) { return fmtDur(r.max_latency_seconds); },
                   title: function (r) { return (r.max_latency_seconds || 0) + ' s - click to edit (15m, 7h, 1d, 1w...)'; } },
+                { key: 'min_volume_pct',      label: 'Alert if volume below', edit: { type: 'number', min: 0 },
+                  render: function (r) { return Number(r.min_volume_pct) > 0 ? r.min_volume_pct + '% of normal' : '-'; },
+                  title: function (r) {
+                      return Number(r.baseline_epc) > 0
+                          ? 'normal ≈ ' + Math.round(r.baseline_epc) + ' events/24h - 0 disables volume alerting'
+                          : 'baseline still learning (needs a few snapshot cycles) - 0 disables';
+                  } },
                 { key: 'maintenance_until',   label: 'Snoozed until', edit: { type: 'snooze' },
                   render: function (r) { return fmtUntil(r.maintenance_until); },
                   title: function (r) { return fmtTs(r.maintenance_until); } },
@@ -641,8 +767,10 @@
                  { value: 'DOWN|CRITICAL', label: 'Missing (DOWN / CRITICAL)' },
                  { value: 'MAINT', label: 'Snoozed' },
                  { value: 'OFF_HOURS', label: 'Off-hours' },
+                 { value: 'LOW_VOLUME', label: 'Low volume' },
                  { value: 'NEW', label: 'Waiting for first check' },
-                 { value: 'UNWATCHED', label: 'Not watched' }],
+                 { value: 'UNWATCHED', label: 'Not watched' },
+                 { value: '__STALE__', label: 'Stale (no events 30d+)' }],
                 state.status, function (v) { state.status = v; render(); })));
             bar.appendChild(labeled('Search (contains)', textInput(state.search, 'entity, index, host, notes...', function (v) { state.search = v; render(); })));
             bar.appendChild(labeled('Tag (contains)', textInput(state.tag, 'prod, payments...', function (v) { state.tag = v; render(); })));
@@ -670,6 +798,43 @@
             actions.appendChild(btn('📅 24/7', null, function () { bulk(function (r) { r.monitoring_schedule = '247'; }, 'Set schedule 24/7'); }));
             actions.appendChild(btn('📅 Weekdays', null, function () { bulk(function (r) { r.monitoring_schedule = 'weekdays'; }, 'Set schedule weekdays'); }));
             actions.appendChild(btn('📅 Business hrs', null, function () { bulk(function (r) { r.monitoring_schedule = 'business_hours'; }, 'Set schedule business hours'); }));
+            actions.appendChild(el('span', 'carbide-sep'));
+            actions.appendChild(btn('🗑 Stop tracking', 'danger', function () {
+                var pool = filtered();
+                var sel = selectedRows(pool);
+                var rows = sel.length ? sel : pool;
+                var scope = sel.length ? rows.length + ' selected rows' : 'ALL ' + rows.length + ' filtered rows';
+                if (!rows.length) { toast('no rows to act on', 'err'); return; }
+                if (!confirm('DELETE ' + scope + ' from tracking? (KV rows are removed; data ingestion unaffected. Discovery will re-find live entities.)')) return;
+                var groups = {};
+                rows.forEach(function (r) { (groups[rowColl(r)] = groups[rowColl(r)] || []).push(r._key); });
+                Object.keys(groups).reduce(function (p, coll) {
+                    return p.then(function () { return kvDeleteKeys(coll, groups[coll]); });
+                }, Promise.resolve()).then(function () {
+                    toast('removed ' + rows.length + ' rows');
+                    state.selected[state.axis].clear();
+                    load();
+                }).catch(function (e) { toast('bulk delete failed: ' + e.message, 'err'); load(); });
+            }));
+            actions.appendChild(el('span', 'carbide-sep'));
+            actions.appendChild(btn('⬇ Export CSV', null, function () {
+                var rows = filtered().map(function (r) {
+                    var d = {}; Object.keys(r).forEach(function (k) { if (k !== '__coll') d[k] = r[k]; });
+                    d._collection = rowColl(r);
+                    return d;
+                });
+                if (!rows.length) { toast('nothing to export', 'err'); return; }
+                var fields = ['_key', '_collection', 'entity_key', 'tracking_mode', 'index', 'host', 'source', 'sourcetype',
+                              'monitored', 'monitoring_schedule', 'max_gap_seconds', 'max_latency_seconds', 'min_volume_pct',
+                              'maintenance_from', 'maintenance_until', 'tags', 'notes',
+                              'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'first_seen', 'last_updated'];
+                downloadCsv('carbide_entities.csv', toCsv(rows, fields));
+            }));
+            actions.appendChild(btn('⬆ Import CSV', null, function () {
+                importCsvInto(ENT_AXES[state.axis].collection || 'carbide_tracked_hosts', function (d) {
+                    return d._collection;
+                }, load);
+            }));
             if (selCount) {
                 actions.appendChild(el('span', 'carbide-sep'));
                 actions.appendChild(btn('Clear selection', null, function () {
@@ -777,6 +942,15 @@
             var bar = el('div', 'carbide-filters');
             bar.appendChild(labeled('Search (contains)', textInput(state.search, '', function (v) { state.search = v; render(); })));
             bar.appendChild(btn('↻ Refresh', null, load));
+            bar.appendChild(btn('⬇ Export CSV', null, function () {
+                var rows = filtered();
+                if (!rows.length) { toast('nothing to export', 'err'); return; }
+                var fields = ['_key'].concat(cfg.columns.map(function (c) { return c.key; }));
+                downloadCsv(cfg.collection + '.csv', toCsv(rows, fields));
+            }));
+            bar.appendChild(btn('⬆ Import CSV', null, function () {
+                importCsvInto(cfg.collection, null, load);
+            }));
             bar.appendChild(versionTag());
             root.appendChild(bar);
 
@@ -943,6 +1117,9 @@
                 { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' },
                   render: function (r) { return Number(r.max_latency_seconds) > 0 ? fmtDur(r.max_latency_seconds) : 'keep default'; },
                   title: function (r) { return '0s = keep default'; } },
+                { key: 'min_volume_pct',     label: 'Alert if volume below', edit: { type: 'number', min: 0 },
+                  render: function (r) { return Number(r.min_volume_pct) > 0 ? r.min_volume_pct + '%' : 'keep default'; },
+                  title: function (r) { return '0 = keep default (volume alerting off)'; } },
                 { key: 'tags',               label: 'Tags', edit: { type: 'text' } },
                 { key: 'notes',              label: 'Notes', edit: { type: 'text' } }
             ],
@@ -959,6 +1136,7 @@
                 { key: 'monitoring_schedule', label: 'Schedule', options: SCHEDULE_OPTIONS },
                 { key: 'max_gap_seconds', label: 'Alert if quiet for', duration: true, placeholder: '7h, 1d... (blank = default)' },
                 { key: 'max_latency_seconds', label: 'Alert if delayed by', duration: true, placeholder: '15m... (blank = default)' },
+                { key: 'min_volume_pct', label: 'Alert if volume below (%)', numeric: true, value: '0', placeholder: '0 = off' },
                 { key: 'tags', label: 'Tags', placeholder: 'prod, windows' },
                 { key: 'notes', label: 'Notes', placeholder: 'optional' }
             ],
@@ -1340,6 +1518,9 @@
                 { key: 'max_gap_seconds', label: 'Alert if quiet for', edit: { type: 'duration' } }));
             cfg.appendChild(kvRow('Alert if delayed by', fmtDur(row.max_latency_seconds),
                 { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' } }));
+            cfg.appendChild(kvRow('Alert if volume below',
+                Number(row.min_volume_pct) > 0 ? row.min_volume_pct + '% of normal' : 'off (0)',
+                { key: 'min_volume_pct', label: 'Alert if volume below (%)', edit: { type: 'number', min: 0 } }));
             cfg.appendChild(kvRow('Snooze from', Number(row.maintenance_from) ? fmtTs(row.maintenance_from) : '-',
                 { key: 'maintenance_from', label: 'Snooze from', edit: { type: 'snooze' } }));
             cfg.appendChild(kvRow('Snoozed until', fmtUntil(row.maintenance_until),
@@ -1361,6 +1542,8 @@
             det.appendChild(kvRow('Sourcetype', row.sourcetype));
             det.appendChild(kvRow('Last event seen', fmtTs(row.last_event_time)));
             det.appendChild(kvRow('Ingest delay at last snapshot', fmtDur(row.last_latency)));
+            det.appendChild(kvRow('Normal volume (learned baseline)',
+                Number(row.baseline_epc) > 0 ? Math.round(row.baseline_epc) + ' events / 24h' : 'still learning'));
             det.appendChild(kvRow('First seen', fmtTs(row.first_seen)));
             det.appendChild(kvRow('Last updated', fmtTs(row.last_updated)));
             cols.appendChild(det);
