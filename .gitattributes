@@ -1,0 +1,6 @@
+# Repo-only files: tracked in git but excluded from `git archive`, which
+# scripts/package.sh uses to build the Splunkbase tarball. Anything NOT
+# listed here ships in the app package.
+scripts/        export-ignore
+.gitattributes  export-ignore
+.gitignore      export-ignore
