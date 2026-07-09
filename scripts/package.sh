@@ -93,7 +93,7 @@ find "$STAGE/$APP_ID" -type f -exec chmod 644 {} +
 export COPYFILE_DISABLE=1
 tar -C "$STAGE" --no-xattrs --uid 0 --gid 0 --numeric-owner -czf "$PKG" "$APP_ID" 2>/dev/null \
     || tar -C "$STAGE" -czf "$PKG" "$APP_ID"
-echo "==> built $PKG ($(du -h "$PKG" | cut -f1 | tr -d ' '))"
+echo "==> built $PKG ($(ls -lh "$PKG" | awk '{print $5}'))"
 
 # --- 5. AppInspect --------------------------------------------------------------
 if [ "$SKIP_INSPECT" = "1" ]; then
@@ -105,7 +105,9 @@ else
         "$VENV/bin/pip" -q install --upgrade pip
         "$VENV/bin/pip" -q install splunk-appinspect
     fi
-    if ! find /opt/homebrew/lib /usr/local/lib /usr/lib -name "libmagic*" 2>/dev/null | grep -q .; then
+    # NB: find exits non-zero when a search dir doesn't exist; under
+    # pipefail that would fail the pipeline even when grep matches.
+    if ! { find /opt/homebrew/lib /usr/local/lib /usr/lib -name "libmagic*" 2>/dev/null || true; } | grep -q .; then
         echo "ERROR: libmagic not found - run: brew install libmagic" >&2
         exit 1
     fi
