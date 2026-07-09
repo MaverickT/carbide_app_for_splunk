@@ -1,2 +1,3 @@
 .claude
-.DS_Store.appinspect-venv/
+.DS_Store
+.appinspect-venv/
