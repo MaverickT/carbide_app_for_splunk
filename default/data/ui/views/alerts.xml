@@ -14,20 +14,30 @@
 
     <row>
         <panel>
-            <title>Triggered alerts</title>
+            <title>Triggered alerts (individual fires)</title>
             <table>
+                <!-- Per-fire from the audit log (same source as the rate
+                     chart). The /services/alerts/fired_alerts REST endpoint
+                     returns one AGGREGATE row per saved search, not per fire,
+                     and under different field names - which is why this used
+                     to render blank columns. -->
                 <search>
                     <query>
-                        | rest /services/alerts/fired_alerts splunk_server=local count=200
-                        | search eai:acl.app="carbide_app_for_splunk" OR savedsearch_name="Carbide -*"
-                        | eval _time = coalesce(strptime(trigger_time, "%a %b %e %H:%M:%S %Y"), now())
+                        index=_audit sourcetype=audittrail action="alert_fired" ss_name="Carbide -*"
+                        | eval severity = case(severity=1,"informational", severity=2,"low", severity=3,"medium", severity=4,"high", severity&gt;=5,"critical", 1=1, severity)
                         | sort - _time
                         | head 100
-                        | table _time savedsearch_name triggered_alerts severity
+                        | table _time, ss_name, severity, sid
+                        | rename ss_name as "alert", sid as "search id"
                     </query>
+                    <earliest>$time_tok.earliest$</earliest>
+                    <latest>$time_tok.latest$</latest>
                 </search>
-                <option name="drilldown">cell</option>
+                <option name="drilldown">none</option>
                 <option name="count">50</option>
+                <format type="color" field="severity">
+                    <colorPalette type="map">{"critical":#dc4e41,"high":#f8be34,"medium":#4ea1f2,"low":#888888,"informational":#888888}</colorPalette>
+                </format>
             </table>
         </panel>
     </row>
