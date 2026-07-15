@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-06.20';
+    var VERSION = '2026-07-15.23';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -97,8 +97,22 @@
     }
 
     // Bulk delete: DELETE with a query param removes every matching doc.
+    // The key list rides the request URL (KV store has no batch-delete
+    // body endpoint), so chunk by ENCODED LENGTH, not row count - ~190
+    // keys already overflow splunkd's ~8k request-line cap (seen live
+    // 2026-07-15: "414 Request-URI Too Long" on a 193-row delete).
+    var DELETE_URL_BUDGET = 6000;
+
     function kvDeleteKeys(coll, keys) {
-        return chunked(keys).reduce(function (p, c) {
+        var chunks = [], cur = [], len = 0;
+        keys.forEach(function (k) {
+            var cost = encodeURIComponent(JSON.stringify({ _key: k })).length + 3; // +3: encoded ',' between items
+            if (cur.length && len + cost > DELETE_URL_BUDGET) { chunks.push(cur); cur = []; len = 0; }
+            cur.push(k);
+            len += cost;
+        });
+        if (cur.length) chunks.push(cur);
+        return chunks.reduce(function (p, c) {
             return p.then(function () {
                 var q = encodeURIComponent(JSON.stringify({ '$or': c.map(function (k) { return { _key: k }; }) }));
                 return rest('DELETE', kvUrl(coll) + '?query=' + q);
@@ -289,6 +303,44 @@
             if (n % units[i][1] === 0) return (n / units[i][1]) + units[i][0];
         }
         return n + 's';
+    }
+
+    // ---- status-window guard -------------------------------------------
+    // The status snapshot's tstats only looks back `carbide_status_window`
+    // (macros.conf). Events delayed longer than that window are invisible
+    // to it, so an entity whose TOLERATED latency exceeds the window can
+    // never be checked correctly: its last_event_time freezes and it
+    // false-flags as DOWN while still "acceptably" late (seen live
+    // 2026-07-15 on an AutoSupport host: ~32h ingest lag vs 24h window).
+    // The UI therefore refuses max_latency_seconds above the window. The
+    // window is read from the live macro at boot so the limit follows
+    // whatever the admin sets; if the macro can't be read or parsed the
+    // check stays off (fail open - never block edits on a REST hiccup).
+    var STATUS_WINDOW = { secs: null, label: '' };
+
+    function loadStatusWindow() {
+        rest('GET', BASE + '/splunkd/__raw/servicesNS/nobody/' + APP +
+                    '/configs/conf-macros/carbide_status_window?output_mode=json')
+            .then(function (data) {
+                var e = data && data.entry && data.entry[0];
+                var def = e && e.content && e.content.definition;
+                var m = /^-(\d+(?:\.\d+)?)(s|m|h|d|w)/.exec(String(def || '').trim());
+                if (m) {
+                    STATUS_WINDOW.secs = Math.round(parseFloat(m[1]) * DUR_UNITS[m[2]]);
+                    STATUS_WINDOW.label = fmtDur(STATUS_WINDOW.secs);
+                }
+            })
+            .catch(function () { /* validation stays off */ });
+    }
+
+    function validateLatency(v) {
+        if (STATUS_WINDOW.secs && Number(v) > STATUS_WINDOW.secs) {
+            return '"Alert if delayed by" can\'t exceed the status check window (currently ' +
+                   STATUS_WINDOW.label + '): events delayed longer than the window are invisible ' +
+                   'to the check, so the entity would false-flag as missing instead. To allow ' +
+                   'this value, first widen the carbide_status_window macro ' +
+                   '(Settings › Advanced search › Search macros).';
+        }
     }
 
     function labeled(labelText, control) {
@@ -710,6 +762,21 @@
             });
         }
 
+        // Bulk-set a duration threshold: one prompt, then the standard
+        // bulk() path (selected rows if any are ticked, else all filtered).
+        // Latency goes through the same status-window guard as inline edits.
+        function bulkDuration(field, label) {
+            var input = prompt('Set "' + label + '" to (e.g. 15m, 7h, 1d, 1w):');
+            if (input == null || input.trim() === '') return;
+            var secs = parseDuration(input);
+            if (secs === null || secs <= 0) { toast(label + ': use a duration like 90s, 15m, 7h, 1d or 1w', 'err'); return; }
+            if (field === 'max_latency_seconds') {
+                var err = validateLatency(secs);
+                if (err) { toast(err, 'err'); return; }
+            }
+            bulk(function (r) { r[field] = secs; }, 'Set "' + label + '" to ' + fmtDur(secs));
+        }
+
         function columns() {
             var axis = state.axis;
             return [
@@ -737,7 +804,7 @@
                 { key: 'max_gap_seconds',     label: 'Alert if quiet for', edit: { type: 'duration' },
                   render: function (r) { return fmtDur(r.max_gap_seconds); },
                   title: function (r) { return (r.max_gap_seconds || 0) + ' s - click to edit (15m, 7h, 1d, 1w...)'; } },
-                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' },
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration', validate: validateLatency },
                   render: function (r) { return fmtDur(r.max_latency_seconds); },
                   title: function (r) { return (r.max_latency_seconds || 0) + ' s - click to edit (15m, 7h, 1d, 1w...)'; } },
                 { key: 'min_volume_pct',      label: 'Alert if volume below', edit: { type: 'number', min: 0 },
@@ -822,6 +889,9 @@
             actions.appendChild(btn('📅 24/7', null, function () { bulk(function (r) { r.monitoring_schedule = '247'; }, 'Set schedule 24/7'); }));
             actions.appendChild(btn('📅 Weekdays', null, function () { bulk(function (r) { r.monitoring_schedule = 'weekdays'; }, 'Set schedule weekdays'); }));
             actions.appendChild(btn('📅 Business hrs', null, function () { bulk(function (r) { r.monitoring_schedule = 'business_hours'; }, 'Set schedule business hours'); }));
+            actions.appendChild(el('span', 'carbide-sep'));
+            actions.appendChild(btn('⏱ Alert if quiet for…', null, function () { bulkDuration('max_gap_seconds', 'Alert if quiet for'); }));
+            actions.appendChild(btn('⏱ Alert if delayed by…', null, function () { bulkDuration('max_latency_seconds', 'Alert if delayed by'); }));
             actions.appendChild(el('span', 'carbide-sep'));
             actions.appendChild(btn('🗑 Stop tracking', 'danger', function () {
                 var pool = filtered();
@@ -1279,7 +1349,7 @@
                 { key: 'max_gap_seconds',    label: 'Alert if quiet for', edit: { type: 'duration' },
                   render: function (r) { return Number(r.max_gap_seconds) > 0 ? fmtDur(r.max_gap_seconds) : 'keep default'; },
                   title: function (r) { return '0s = keep default'; } },
-                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' },
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration', validate: validateLatency },
                   render: function (r) { return Number(r.max_latency_seconds) > 0 ? fmtDur(r.max_latency_seconds) : 'keep default'; },
                   title: function (r) { return '0s = keep default'; } },
                 { key: 'min_volume_pct',     label: 'Alert if volume below', edit: { type: 'number', min: 0 },
@@ -1307,6 +1377,8 @@
             ],
             validate: function (d) {
                 if (!d.rule_name) return 'rule name is required';
+                var latErr = validateLatency(d.max_latency_seconds);
+                if (latErr) return latErr;
                 ['index_pattern', 'host_pattern', 'source_pattern', 'sourcetype_pattern'].forEach(function (k) {
                     if (!d[k]) d[k] = '*';
                 });
@@ -1446,7 +1518,23 @@
 
         function applyField(axis, rows, field, sourceField) {
             var candidates = rows.filter(function (r) { return Number(r[sourceField]) > 0 && r._key; });
-            if (!candidates.length) { toast('no applicable rows', 'err'); return; }
+            // Suggested latency (P95 x 1.5) can legitimately exceed the
+            // status window for slow feeds - applying it would create the
+            // invisible-entity trap the inline editors refuse, so skip
+            // those rows and say so instead of silently writing them.
+            var skipped = 0;
+            if (field === 'max_latency_seconds' && STATUS_WINDOW.secs) {
+                var fit = candidates.filter(function (r) { return Number(r[sourceField]) <= STATUS_WINDOW.secs; });
+                skipped = candidates.length - fit.length;
+                candidates = fit;
+            }
+            if (!candidates.length) {
+                toast(skipped
+                    ? 'nothing applied - all ' + skipped + ' suggestions exceed the status check window (' +
+                      STATUS_WINDOW.label + '); widen the carbide_status_window macro first'
+                    : 'no applicable rows', 'err');
+                return;
+            }
             if (!confirm('Apply ' + sourceField + ' to ' + field + ' on ' + candidates.length + ' rows?')) return;
             // KV POST replaces the whole doc, so patch the full tracked rows.
             kvList(axis.collection).then(function (docs) {
@@ -1463,7 +1551,10 @@
                 });
                 if (!updates.length) throw new Error('no matching tracked rows');
                 return batchSaveAll(axis.collection, updates).then(function () {
-                    toast('applied to ' + updates.length + ' rows');
+                    toast('applied to ' + updates.length + ' rows' + (skipped
+                        ? ' - skipped ' + skipped + ' whose suggestion exceeds the ' +
+                          STATUS_WINDOW.label + ' status check window'
+                        : ''));
                 });
             }).catch(function (e) { toast('apply failed: ' + e.message, 'err'); });
         }
@@ -1863,7 +1954,7 @@
             cfg.appendChild(kvRow('Alert if quiet for', fmtDur(row.max_gap_seconds),
                 { key: 'max_gap_seconds', label: 'Alert if quiet for', edit: { type: 'duration' } }));
             cfg.appendChild(kvRow('Alert if delayed by', fmtDur(row.max_latency_seconds),
-                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration' } }));
+                { key: 'max_latency_seconds', label: 'Alert if delayed by', edit: { type: 'duration', validate: validateLatency } }));
             cfg.appendChild(kvRow('Alert if volume below',
                 Number(row.min_volume_pct) > 0 ? row.min_volume_pct + '% of normal' : 'off (0)',
                 { key: 'min_volume_pct', label: 'Alert if volume below (%)', edit: { type: 'number', min: 0 } }));
@@ -2053,6 +2144,7 @@
         root = document.getElementById('carbide-manage');
         if (!root) return;
         booted = true;
+        loadStatusWindow();
         var page = root.getAttribute('data-page') || 'manage_entities';
         if (page === 'manage_entities')         entitiesPage();
         else if (page === 'entity')             entityPage();
