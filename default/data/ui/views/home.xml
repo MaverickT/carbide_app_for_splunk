@@ -137,7 +137,21 @@
             <title>Missing</title>
             <single>
                 <search>
-                    <query>| `carbide_cached_status` | search status="DOWN" OR status="CRITICAL" | stats count</query>
+                    <!-- Members absorbed by a suppressing, still-up HA cluster are
+                         not "missing" from the operator's point of view: the cluster
+                         row carries them (attention table + cluster alert). Same
+                         exclusion subsearch as the entity alerts. -->
+                    <query>| `carbide_cached_status` | search status="DOWN" OR status="CRITICAL"
+                        | search NOT [
+                            | `carbide_cluster_status`
+                            | where coalesce(suppress_member_alerts,0)=1 AND (status="OK" OR status="DEGRADED")
+                            | fields failing_members
+                            | mvexpand failing_members
+                            | rename failing_members as entity_key
+                            | where isnotnull(entity_key) AND entity_key!=""
+                            | dedup entity_key
+                            | fields entity_key ]
+                        | stats count</query>
                     </search>
                 <option name="underLabel">✗ DOWN / CRITICAL</option>
                 <option name="colorBy">value</option>
@@ -183,6 +197,15 @@
                               | eval tags = coalesce(healthy_pct,0)."% healthy - ".reporting_members." of ".eligible_members." members reporting" ]
                         | `carbide_friendly_status`
                         | search (status="DOWN" OR status="CRITICAL" OR status="LATE" OR status="LOW_VOLUME" OR status="DEGRADED")
+                        | search NOT [
+                            | `carbide_cluster_status`
+                            | where coalesce(suppress_member_alerts,0)=1 AND (status="OK" OR status="DEGRADED")
+                            | fields failing_members
+                            | mvexpand failing_members
+                            | rename failing_members as entity_key
+                            | where isnotnull(entity_key) AND entity_key!=""
+                            | dedup entity_key
+                            | fields entity_key ]
                         | `carbide_humanize_duration(current_gap)`
                         | `carbide_humanize_duration(current_latency)`
                         | eval entity_label = case(entity_type="host", "host", entity_type="cluster", "cluster", 1=1, "source")
