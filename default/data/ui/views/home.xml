@@ -177,13 +177,16 @@
             <table>
                 <search>
                     <query>
-                        | `carbide_cached_status`
+                        | union
+                            [ | `carbide_cached_status` ]
+                            [ | `carbide_cluster_status`
+                              | eval tags = coalesce(healthy_pct,0)."% healthy - ".reporting_members." of ".eligible_members." members reporting" ]
                         | `carbide_friendly_status`
-                        | search (status="DOWN" OR status="CRITICAL" OR status="LATE" OR status="LOW_VOLUME")
+                        | search (status="DOWN" OR status="CRITICAL" OR status="LATE" OR status="LOW_VOLUME" OR status="DEGRADED")
                         | `carbide_humanize_duration(current_gap)`
                         | `carbide_humanize_duration(current_latency)`
-                        | eval entity_label = case(entity_type="host", "host", 1=1, "source")
-                        | eval _sev = case(status="CRITICAL",4, status="DOWN",3, status="LATE",2, status="LOW_VOLUME",1, 1=1, 0)
+                        | eval entity_label = case(entity_type="host", "host", entity_type="cluster", "cluster", 1=1, "source")
+                        | eval _sev = case(entity_type="cluster",5, status="CRITICAL",4, status="DOWN",3, status="LATE",2, status="LOW_VOLUME",1, 1=1, 0)
                         | sort - _sev, - current_gap
                         | head 25
                         | table status_h, entity_label, entity_key, current_gap_h, current_latency_h, tags
@@ -200,7 +203,7 @@
                 <option name="rowNumbers">false</option>
                 <option name="count">25</option>
                 <format type="color" field="status">
-                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"📉 Low volume":#c47a2e,"🌅 Settling":#b8934a,"⏳ Waiting for first check":#888888}</colorPalette>
+                    <colorPalette type="map">{"✓ Healthy":#53a051,"⚠ Delayed":#f8be34,"✗ Missing data":#dc4e41,"✗ Missing + delayed":#9b1d1d,"🔧 Snoozed":#4ea1f2,"🌙 Off-hours":#6c63ff,"📉 Low volume":#c47a2e,"🌅 Settling":#b8934a,"⏳ Waiting for first check":#888888,"🔶 Cluster degraded":#e07b39,"✗ Cluster down":#9b1d1d}</colorPalette>
                 </format>
                 <drilldown>
                     <condition field="entity">

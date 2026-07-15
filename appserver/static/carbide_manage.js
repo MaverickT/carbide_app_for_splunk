@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-15.23';
+    var VERSION = '2026-07-15.25';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -777,6 +777,26 @@
             bulk(function (r) { r[field] = secs; }, 'Set "' + label + '" to ' + fmtDur(secs));
         }
 
+        // Bulk add/remove one tag. Tags drive ad-hoc grouping AND cluster
+        // membership (Manage clusters matches entity tags by cluster name),
+        // so this is also how you put 20 nodes into an HA cluster at once.
+        function bulkTag(add) {
+            var input = prompt(add
+                ? 'Tag to add (also how cluster membership is assigned - use the cluster\'s name):'
+                : 'Tag to remove:');
+            if (input == null) return;
+            var tag = input.trim();
+            if (!tag) return;
+            if (tag.indexOf(',') >= 0) { toast('one tag at a time - no commas', 'err'); return; }
+            bulk(function (r) {
+                var tags = String(r.tags || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+                var i = tags.indexOf(tag);
+                if (add && i < 0) tags.push(tag);
+                if (!add && i >= 0) tags.splice(i, 1);
+                r.tags = tags.join(',');
+            }, (add ? 'Add tag "' : 'Remove tag "') + tag + '"');
+        }
+
         function columns() {
             var axis = state.axis;
             return [
@@ -893,6 +913,9 @@
             actions.appendChild(btn('⏱ Alert if quiet for…', null, function () { bulkDuration('max_gap_seconds', 'Alert if quiet for'); }));
             actions.appendChild(btn('⏱ Alert if delayed by…', null, function () { bulkDuration('max_latency_seconds', 'Alert if delayed by'); }));
             actions.appendChild(el('span', 'carbide-sep'));
+            actions.appendChild(btn('🏷 Add tag…', null, function () { bulkTag(true); }));
+            actions.appendChild(btn('🏷 Remove tag…', null, function () { bulkTag(false); }));
+            actions.appendChild(el('span', 'carbide-sep'));
             actions.appendChild(btn('🗑 Stop tracking', 'danger', function () {
                 var pool = filtered();
                 var sel = selectedRows(pool);
@@ -1000,6 +1023,10 @@
 
     function crudPage(cfg) {
         var state = { rows: [], loaded: false, search: '', sort: { key: cfg.sortKey, dir: 1 }, add: {} };
+        // Built ONCE per page load (not per render): the section owns its
+        // own fetch/refresh state, and rebuilding it on every keystroke of
+        // the search box would refire its search each time.
+        var previewNode = cfg.previewSection ? cfg.previewSection() : null;
 
         function filtered() {
             var needle = state.search.trim().toLowerCase();
@@ -1038,6 +1065,9 @@
 
             if (cfg.discoveryPreview) {
                 root.appendChild(discoveryPreviewSection(cfg.discoveryPreview === 'autowatch'));
+            }
+            if (previewNode) {
+                root.appendChild(previewNode);
             }
 
             var bar = el('div', 'carbide-filters');
@@ -1296,6 +1326,70 @@
         return rel.indexOf(field) >= 0;
     }
 
+    // ---- clusters (HA groups) -------------------------------------------
+    // Membership is by tag (entity.tags contains cluster_name); health is
+    // quorum-based - see the carbide_cluster_status macro for the math.
+    var CLUSTER_STATUS_META = {
+        OK:       { label: '✓ Healthy',                          cls: 'ok' },
+        DEGRADED: { label: '🔶 Degraded (quorum lost)',          cls: 'late' },
+        DOWN:     { label: '✗ Down (nothing reporting)',         cls: 'down' },
+        IDLE:     { label: '🌙 Idle (members snoozed/off-hours)', cls: 'offhours' },
+        EMPTY:    { label: '∅ No members carry this tag',        cls: 'new' }
+    };
+
+    function clusterChip(status) {
+        if (!status) return el('span', null, '-');
+        var meta = CLUSTER_STATUS_META[status] || { label: status, cls: 'new' };
+        return el('span', 'carbide-chip carbide-chip-' + meta.cls, meta.label);
+    }
+
+    function clusterStatusSection() {
+        var wrap = el('div', 'carbide-preview');
+        var head = el('div', 'carbide-preview-head');
+        head.appendChild(el('strong', null, '🩺 Live cluster health (from the last snapshot of each member)'));
+        var out = el('div', 'carbide-preview-out');
+        function run() {
+            out.textContent = '';
+            out.appendChild(el('div', 'carbide-loading', 'Checking cluster health…'));
+            oneshot('| `carbide_cluster_status` ' +
+                    '| eval failing_members = mvjoin(failing_members, ", ") ' +
+                    '| table cluster_name, status, healthy_pct, reporting_members, eligible_members, member_count, min_pct, min_cnt, failing_members',
+                    '-5m', 'now').then(function (rows) {
+                out.textContent = '';
+                var cols = [
+                    { key: 'cluster_name',      label: 'Cluster' },
+                    { key: 'status',            label: 'Status', render: function (r) { return clusterChip(r.status); } },
+                    { key: 'healthy_pct',       label: 'Healthy',
+                      render: function (r) { return r.healthy_pct == null || r.healthy_pct === '' ? '-' : r.healthy_pct + '%'; } },
+                    { key: 'reporting_members', label: 'Reporting',
+                      render: function (r) {
+                          return (Number(r.reporting_members) || 0) + ' of ' + (Number(r.eligible_members) || 0) +
+                                 ' eligible (' + (Number(r.member_count) || 0) + ' tagged)';
+                      } },
+                    { key: 'min_pct',           label: 'Needs',
+                      render: function (r) {
+                          return (Number(r.min_pct) || 0) + '%' +
+                                 (Number(r.min_cnt) > 0 ? ' and ≥ ' + r.min_cnt : '');
+                      } },
+                    { key: 'failing_members',   label: 'Not reporting' }
+                ];
+                out.appendChild(buildTable(cols, {
+                    rows: rows, sort: { key: 'cluster_name', dir: 1 },
+                    onSort: function () {}, onEdit: function () {},
+                    emptyText: 'No clusters defined yet - add one below, then tag the member entities with the cluster name in Manage entities (quick action: 🏷 Add tag).'
+                }));
+            }).catch(function (e) {
+                out.textContent = '';
+                out.appendChild(el('div', 'carbide-error', 'Cluster status check failed: ' + e.message));
+            });
+        }
+        head.appendChild(btn('↻ Check now', null, run));
+        wrap.appendChild(head);
+        wrap.appendChild(out);
+        run();
+        return wrap;
+    }
+
     var SCHEDULE_OPTIONS = [
         { value: '', label: 'keep default' },
         { value: '247', label: '24/7' },
@@ -1304,6 +1398,60 @@
     ];
 
     var CRUD_PAGES = {
+        manage_clusters: {
+            collection: 'carbide_clusters',
+            intro: 'High-availability groups: a cluster stays Healthy while enough of its members still report, so one dead node in a redundant pool doesn\'t page anyone - and losing quorum does. ' +
+                   'Membership is by tag: give each member entity the cluster\'s name as a tag in Manage entities (tick the rows, quick action "🏷 Add tag"). ' +
+                   'Snoozed / off-hours / settling / new members are left out of the quorum math on both sides; a member counts as reporting unless it is DOWN or CRITICAL. ' +
+                   'Renaming a cluster does NOT re-tag its members - re-tag them yourself.',
+            sortKey: 'cluster_name',
+            searchFields: ['cluster_name', 'notes'],
+            previewSection: clusterStatusSection,
+            columns: [
+                { key: 'cluster_name', label: 'Cluster (= member tag)',
+                  edit: { type: 'text', validate: function (v) {
+                      if (!v) return 'cluster name is required';
+                      if (v.indexOf(',') >= 0) return 'no commas - the name is matched as a single tag';
+                  } } },
+                { key: 'min_healthy_pct', label: 'Healthy while at least', edit: { type: 'number', min: 1, validate: function (v) {
+                      if (v > 100) return 'percent - between 1 and 100';
+                  } },
+                  render: function (r) { return Number(r.min_healthy_pct) > 0 ? r.min_healthy_pct + '% report' : 'default (50% report)'; } },
+                { key: 'min_healthy_count', label: '…and at least', edit: { type: 'number', min: 0 },
+                  render: function (r) { return Number(r.min_healthy_count) > 0 ? r.min_healthy_count + ' members' : '-'; },
+                  title: function () { return 'Optional absolute floor for small clusters (50% of a 2-node pair is 1 node). 0 = percent only.'; } },
+                { key: 'suppress_member_alerts', label: 'Member alerts while cluster is up',
+                  edit: { type: 'select', numeric: true, options: [
+                      { value: '1', label: 'suppressed' }, { value: '0', label: 'still fire' }] },
+                  render: function (r) {
+                      return el('span', 'carbide-chip ' + (Number(r.suppress_member_alerts) === 1 ? 'carbide-chip-ok' : 'carbide-chip-new'),
+                                Number(r.suppress_member_alerts) === 1 ? 'suppressed' : 'still fire');
+                  },
+                  title: function () { return 'Suppressed = a DOWN member does not alert individually while the cluster is Healthy OR Degraded - the cluster alert owns the quorum-loss signal; members page individually only once the whole cluster is Down.'; } },
+                { key: 'last_status', label: 'Last snapshot status',
+                  render: function (r) { return clusterChip(r.last_status); },
+                  title: function (r) { return Number(r.last_healthy_pct) > 0 ? r.last_healthy_pct + '% healthy at the last status change' : 'written by the 5-min cluster snapshot'; } },
+                { key: 'notes', label: 'Notes', edit: { type: 'text' } }
+            ],
+            addTitle: 'Add cluster',
+            addForm: [
+                { key: 'cluster_name', label: 'Cluster name (= member tag)', placeholder: 'e.g. asup-nodes' },
+                { key: 'min_healthy_pct', label: 'Healthy while at least (%)', numeric: true, value: '50' },
+                { key: 'min_healthy_count', label: '…and at least (members, 0 = off)', numeric: true, value: '0' },
+                { key: 'suppress_member_alerts', label: 'Member alerts while cluster is up', numeric: true,
+                  options: [{ value: '1', label: 'Suppressed (recommended)' }, { value: '0', label: 'Still fire' }] },
+                { key: 'notes', label: 'Notes', placeholder: 'optional' }
+            ],
+            clearAfterAdd: ['cluster_name', 'notes'],
+            validate: function (d) {
+                if (!d.cluster_name) return 'cluster name is required';
+                if (String(d.cluster_name).indexOf(',') >= 0) return 'no commas in the cluster name - it is matched as a single tag';
+                var pct = Number(d.min_healthy_pct);
+                if (!(pct > 0 && pct <= 100)) return 'healthy % must be between 1 and 100';
+            },
+            emptyText: 'No clusters yet - add one above, then tag its member entities with the cluster name.'
+        },
+
         manage_autowatch: {
             collection: 'carbide_autowatch_rules',
             intro: 'Auto-watch: when discovery finds a NEW entity whose scope and patterns all match a rule (wildcards * and ?), the rule is applied at insert time - start watching, set schedule, thresholds, tags. ' +

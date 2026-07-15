@@ -5,7 +5,7 @@
         "id": {
             "group": null,
             "name": "carbide_app_for_splunk",
-            "version": "1.6.0"
+            "version": "1.7.0"
         },
         "author": [
             { "name": "Ziga Humar", "email": null, "company": null }
