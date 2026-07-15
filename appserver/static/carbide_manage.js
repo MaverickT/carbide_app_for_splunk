@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-15.25';
+    var VERSION = '2026-07-15.26';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -820,7 +820,7 @@
                   } },
                 { key: 'monitoring_schedule', label: 'Schedule', edit: { type: 'select', options: ['247', 'weekdays', 'business_hours'] },
                   render: function (r) { return r.monitoring_schedule || '247'; } },
-                { key: 'tags',                label: 'Tags', edit: { type: 'text' } },
+                { key: 'tags',                label: 'Tags', edit: { type: 'text' }, render: tagsCell },
                 { key: 'max_gap_seconds',     label: 'Alert if quiet for', edit: { type: 'duration' },
                   render: function (r) { return fmtDur(r.max_gap_seconds); },
                   title: function (r) { return (r.max_gap_seconds || 0) + ' s - click to edit (15m, 7h, 1d, 1w...)'; } },
@@ -1000,7 +1000,7 @@
 
         function load() {
             state.loaded = false;
-            Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources')]).then(function (res) {
+            Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources'), loadClusters()]).then(function (res) {
                 state.rows.carbide_tracked_hosts = res[0] || [];
                 state.rows.carbide_tracked_sources = res[1] || [];
                 state.rows.carbide_tracked_hosts.forEach(function (r) { r.__coll = 'carbide_tracked_hosts'; });
@@ -1387,6 +1387,72 @@
         wrap.appendChild(head);
         wrap.appendChild(out);
         run();
+        return wrap;
+    }
+
+    // Cluster membership is implicit (entity.tags contains cluster_name),
+    // so nothing would otherwise tell a user that a tag is load-bearing -
+    // e.g. that this entity's own DOWN alerts are suppressed because of
+    // it. Pages that render entities load the cluster definitions once
+    // and highlight the tags that are clusters.
+    var CLUSTERS_BY_NAME = null;
+
+    function loadClusters() {
+        return kvList('carbide_clusters').then(function (rows) {
+            CLUSTERS_BY_NAME = {};
+            (rows || []).forEach(function (c) { if (c.cluster_name) CLUSTERS_BY_NAME[c.cluster_name] = c; });
+        }).catch(function () { CLUSTERS_BY_NAME = CLUSTERS_BY_NAME || {}; });
+    }
+
+    function entityClusters(row) {
+        if (!CLUSTERS_BY_NAME) return [];
+        return String(row.tags || '').split(',')
+            .map(function (t) { return t.trim(); })
+            .filter(function (t) { return t && CLUSTERS_BY_NAME[t]; })
+            .map(function (t) { return CLUSTERS_BY_NAME[t]; });
+    }
+
+    function clusterTagTitle(c) {
+        return 'HA cluster "' + c.cluster_name + '" - ' +
+               (Number(c.suppress_member_alerts) === 1
+                   ? 'this entity\'s own missing-data alerts are suppressed while the cluster is up'
+                   : 'member alerts still fire individually') +
+               '. Manage: Clusters (HA groups).';
+    }
+
+    // Tags cell: plain text unless one of the tags is a cluster name, in
+    // which case that tag renders as a 🛡 chip with an explanatory title.
+    function tagsCell(r) {
+        var tags = String(r.tags || '').split(',').map(function (t) { return t.trim(); }).filter(Boolean);
+        if (!tags.length) return '';
+        var hasCluster = CLUSTERS_BY_NAME && tags.some(function (t) { return CLUSTERS_BY_NAME[t]; });
+        if (!hasCluster) return tags.join(', ');
+        var span = el('span');
+        tags.forEach(function (t, i) {
+            if (i) span.appendChild(document.createTextNode(', '));
+            if (CLUSTERS_BY_NAME[t]) {
+                var chip = el('span', 'carbide-chip carbide-chip-maint', '🛡 ' + t);
+                chip.title = clusterTagTitle(CLUSTERS_BY_NAME[t]);
+                span.appendChild(chip);
+            } else {
+                span.appendChild(document.createTextNode(t));
+            }
+        });
+        return span;
+    }
+
+    function clusterMembershipNode(clusters) {
+        var wrap = el('span');
+        clusters.forEach(function (c, i) {
+            if (i) wrap.appendChild(document.createTextNode('  '));
+            var a = el('a');
+            a.href = 'manage_clusters';
+            a.title = clusterTagTitle(c);
+            a.appendChild(el('span', 'carbide-chip carbide-chip-maint', '🛡 ' + c.cluster_name));
+            wrap.appendChild(a);
+            wrap.appendChild(document.createTextNode(' '));
+            wrap.appendChild(clusterChip(c.last_status));
+        });
         return wrap;
     }
 
@@ -2113,7 +2179,11 @@
                 { key: 'maintenance_from', label: 'Snooze from', edit: { type: 'snooze' } }));
             cfg.appendChild(kvRow('Snoozed until', fmtUntil(row.maintenance_until),
                 { key: 'maintenance_until', label: 'Snoozed until', edit: { type: 'snooze' } }));
-            cfg.appendChild(kvRow('Tags', row.tags || '-', { key: 'tags', label: 'Tags', edit: { type: 'text' } }));
+            cfg.appendChild(kvRow('Tags', tagsCell(row) || '-', { key: 'tags', label: 'Tags', edit: { type: 'text' } }));
+            var memberOf = entityClusters(row);
+            if (memberOf.length) {
+                cfg.appendChild(kvRow('In clusters', clusterMembershipNode(memberOf)));
+            }
             cfg.appendChild(kvRow('Notes', row.notes || '-', { key: 'notes', label: 'Notes', edit: { type: 'text' } }));
             if (coll === 'carbide_tracked_hosts') {
                 cfg.appendChild(kvRow('Grouped by', row.tracking_mode,
@@ -2263,7 +2333,7 @@
             rest('GET', kvUrl(wantColl, wantKey)).then(function (doc) {
                 if (!doc || !doc._key) throw new Error('row not found');
                 row = doc; coll = wantColl;
-                start();
+                loadClusters().then(start);
             }).catch(function () { resolveByEntityKey(); });
         } else {
             resolveByEntityKey();
@@ -2271,7 +2341,7 @@
 
         function resolveByEntityKey() {
             if (!wantEntity && !wantKey) { fail('No entity specified.'); return; }
-            Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources')]).then(function (res) {
+            Promise.all([kvList('carbide_tracked_hosts'), kvList('carbide_tracked_sources'), loadClusters()]).then(function (res) {
                 var pools = [['carbide_tracked_hosts', res[0] || []], ['carbide_tracked_sources', res[1] || []]];
                 for (var i = 0; i < pools.length; i++) {
                     var hit = pools[i][1].filter(function (r) {
