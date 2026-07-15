@@ -14,13 +14,15 @@ Silent feed failures are usually discovered too late: a forwarder dies, an API t
 
 Everything is tstats-powered — discovery and status calculation never scan raw events, and indexer cost scales with your watch list, not the size of your estate. Configuration is inline and bulk-editable: per-entity thresholds with human-friendly durations (7h, 1d, 1w), monitoring schedules (24/7, weekdays, business hours with holiday calendar and Monday-morning grace), maintenance windows, tags, and auto-watch rules that onboard newly discovered entities automatically. Alerts fire once on the transition into a bad state — not repeatedly while it persists.
 
+Redundant pools get **HA cluster monitoring**: group members by tag, set a quorum (e.g. at least 60% must report), and one dead node in a load-balanced farm stays quiet while the redundancy absorbs it — losing quorum is what alerts, with the full list of failing members. Member alerts, the Home dashboard and the pager all tell the same story.
+
 For Splunk Enterprise Security users, Carbide ships notable events, risk-based alerting, CIM Alerts data model alignment, asset enrichment, and Incident Review drilldowns to a per-entity detail page — all silently inactive on installs without ES.
 
-No license key, no external dependencies, no data model accelerations, no scripted inputs. One dedicated index (you create it), six KV store collections, and a set of scheduled searches you can read and edit.
+No license key, no external dependencies, no data model accelerations, no scripted inputs. One dedicated index (you create it), seven KV store collections, and a set of scheduled searches you can read and edit.
 
 ## Short description (≤380 chars)
 
-Know when a host, source or sourcetype stops reporting — before someone asks where the data went. Per-entity gap, latency and volume-drop detection with learned baselines, business-hours schedules, auto-onboarding rules and transition-based alerts. tstats-powered (no raw scans), KV-backed, inline-editable. ES integration included, works without ES.
+Know when a host, source or sourcetype stops reporting — before someone asks where the data went. Per-entity gap, latency and volume-drop detection with learned baselines, HA cluster quorum tracking, business-hours schedules, auto-onboarding rules and transition-based alerts. tstats-powered (no raw scans), KV-backed, inline-editable. ES integration included, works without ES.
 
 ## Details
 
@@ -29,11 +31,12 @@ Know when a host, source or sourcetype stops reporting — before someone asks w
 1. **Discovery** (every 4 hours, tstats-only) inventories what reports into your indexes. Two modes are on by default — hosts by index+host, sourcetypes by index+sourcetype — and three advanced modes (host+sourcetype, host+source, index+source) can be enabled per axis. Include/exclude filter rules (Splunk wildcards, per-mode scoping) keep noise out.
 2. **You pick what to watch** on the Manage entities page — filter, then one click on the quick-action row (or a bulk CSV import). Optionally define **auto-watch rules**: newly discovered entities matching a rule are onboarded automatically with watching enabled, thresholds, schedule and tags applied.
 3. **Status snapshots** (every 5 minutes) compute each watched entity's state: OK, LATE (ingest latency above threshold), DOWN (quiet longer than allowed), CRITICAL (both), LOW_VOLUME (24h count below N% of learned baseline), plus SETTLING (grace after a schedule reopens), MAINT (snoozed), OFF_HOURS (outside its monitoring schedule) and NEW.
-4. **Alerts** (Hosts, Sources) fire on the *transition* into DOWN/LATE/CRITICAL/LOW_VOLUME — an ongoing outage does not re-alert every cycle. Wire email/webhook/PagerDuty actions on the two saved searches.
+4. **Alerts** (Hosts, Sources, Clusters) fire on the *transition* into a bad state — an ongoing outage does not re-alert every cycle. Entities grouped into an HA cluster can suppress their individual alerts while the cluster still meets quorum; the cluster alert takes over the moment it doesn't. Wire email/webhook/PagerDuty actions on the saved searches.
 
 ### Day-2 features
 
-- **Per-entity thresholds** edited inline with human-friendly durations (15m, 7h, 1d, 1w); a threshold-suggestions dashboard proposes values from 7-day P95 latency and average event interval.
+- **HA clusters (quorum monitoring)**: group redundant entities by tag and define what "healthy" means — at least N% of members reporting, optionally with an absolute floor for small pools. One dead node in a 20-node syslog farm stays quiet; losing quorum alerts with the full failing-member list. Snoozed and off-hours members are excluded from the math on both sides, cluster membership is flagged on every entity view, and Home hides absorbed member outages so the dashboard matches what actually pages.
+- **Per-entity thresholds** edited inline with human-friendly durations (15m, 7h, 1d, 1w); a threshold-suggestions dashboard proposes values from 7-day P95 latency and average event interval. Bulk quick actions set thresholds and tags across a filtered or ticked selection in one prompt. Guard rails included: the UI refuses a latency tolerance the status search couldn't actually observe (see `carbide_status_window`).
 - **Monitoring schedules**: 24/7, weekdays, or business hours per entity, with a global holiday calendar and a configurable grace window after the schedule reopens so Monday mornings don't page you for the weekend's silence.
 - **Maintenance windows**: snooze now or schedule a future window, per row or in bulk.
 - **Availability view**: per-entity daily heatmap plus dwell-based availability % and downtime totals over 7/30/90 days.
@@ -68,11 +71,13 @@ Notable events with Incident Review drilldown to the entity page, risk-based ale
 
 2. **Install the app** on your search head(s): Apps > Manage Apps > Install app from file, or extract to `$SPLUNK_HOME/etc/apps/`. For search head clusters, deploy through the SHC deployer. Restart Splunk (KV store collections register on first load).
 
-3. **Open the app.** The Home page walks you through the bootstrap: optionally add entity filters and auto-watch rules first (both pages have a dry-run discovery preview), then run the two default discovery searches once from Settings > Searches (they also run every 4 hours on their own).
+3. **Run the seed searches — BEFORE discovery.** From Settings > Searches, reports, and alerts, run "Carbide - Seed Entity Filters" and "Carbide - Seed Holidays" once. The first installs the default exclude rules (internal `_*` indexes, `summary`, `history`); the second pre-fills the holiday calendar. Both are idempotent — they only populate an empty collection and never overwrite your edits — and they also run hourly on their own, but if discovery runs before the filter seed it will inventory all the internal-index noise the rules exist to exclude (harmless, but you'll be deleting rows). Seed first, discover second.
 
-4. **Pick what to watch** on Manage entities — filter and use the quick-action row, or let your auto-watch rules onboard entities automatically.
+4. **Run discovery.** The Home page walks you through the bootstrap: optionally add your own entity filters and auto-watch rules first (both pages have a dry-run discovery preview), then run the two default discovery searches once from Settings > Searches (they also run every 4 hours on their own).
 
-5. **Arm the alerts.** The two alert searches (Hosts, Sources) are enabled with 30-minute per-entity suppression but send nothing until you add actions: fill in `action.email.to` or attach webhook/PagerDuty actions under Settings > Searches, reports, and alerts. The optional daily-digest search works the same way.
+5. **Pick what to watch** on Manage entities — filter and use the quick-action row, or let your auto-watch rules onboard entities automatically. Redundant pools can be grouped into HA clusters (Manage > Clusters): tag the members with the cluster's name and set the quorum.
+
+6. **Arm the alerts.** The alert searches (Hosts, Sources, Clusters) are enabled with 30-minute per-entity suppression but send nothing until you add actions: fill in `action.email.to` or attach webhook/PagerDuty actions under Settings > Searches, reports, and alerts. The optional daily-digest search works the same way.
 
 Verify the install on Settings > App health: every collection, macro, the index and the saved searches are self-tested there in one glance.
 
@@ -87,14 +92,23 @@ Check your entity-filter rules on Manage > Entity Filters — the shipped seed r
 **Everything shows "Just discovered" / nothing has a live status.**
 Only *watched* entities get status. Flip "Start watching" on Manage entities, then wait one snapshot cycle (5 minutes).
 
+**Discovery inventoried internal indexes (`_internal`, `_audit`, `summary`…).**
+Discovery ran before the seed search installed the default exclude rules. Run "Carbide - Seed Entity Filters" (idempotent — it only fills an empty collection), then delete the noise rows in Manage entities; with the rules in place they won't be re-discovered.
+
 **An entity is marked DOWN but data arrives — or its "Alert if quiet for" is several days.**
-Statuses come from the snapshot searches every 5 minutes; give a new threshold one cycle to take effect. Entities that legitimately report less often than daily are supported (the last-seen time persists across search windows), just set `max_gap` accordingly — the threshold-suggestions page proposes sane values from observed intervals.
+Statuses come from the snapshot searches every 5 minutes; give a new threshold one cycle to take effect. Entities that legitimately report less often than daily are supported (the last-seen time persists across search windows), just set `max_gap` accordingly — the threshold-suggestions page proposes sane values from observed intervals. One more cause worth checking: if the feed's *ingest lag* exceeds the status search window (`carbide_status_window`, default 24h on event time), events arrive already too old for the snapshot to see and the last-seen time freezes. Compare `max(_time)` against `latest(_indextime)` for the entity; if the lag is real, widen the macro (e.g. `-72h@h`) — the UI's latency limit follows it automatically.
+
+**A DOWN host doesn't appear on Home and didn't alert.**
+Check its tags: a 🛡 tag means it's a member of an HA cluster with member-alert suppression. While the cluster still meets quorum, individual member outages are deliberately absorbed — that's the feature, not a miss. The member is still listed in Manage entities (status DOWN) and in the cluster's "Not reporting" column on Manage > Clusters; losing quorum fires the cluster alert with the full failing list.
+
+**The UI refuses a large "Alert if delayed by" value.**
+The status check only looks back `carbide_status_window` (default 24h) on event time, so tolerating more latency than the window would make acceptably-late events invisible and false-flag the entity as missing. Widen the macro first (Settings > Advanced search > Search macros), then set the threshold — the UI limit follows the macro.
 
 **A weekday/business-hours entity goes DOWN every Monday morning.**
 That's what the reopen grace is for: after the schedule reopens the entity holds in SETTLING for `carbide_default_offhours_grace` (default 1h, per-entity overridable) before DOWN can fire. Raise the grace if your first events arrive later.
 
 **Alerts fire but emails don't arrive.**
-The alert actions ship unconfigured by design. Set `action.email.to` on "Carbide - Alert: Hosts" / "Carbide - Alert: Sources", and confirm your Splunk mail server settings (Settings > Server settings > Email settings).
+The alert actions ship unconfigured by design. Set `action.email.to` on "Carbide - Alert: Hosts" / "Carbide - Alert: Sources" / "Carbide - Alert: Clusters", and confirm your Splunk mail server settings (Settings > Server settings > Email settings). The cluster alert is email-only on purpose — quorum loss is an availability signal; the ES notable/risk actions ride on the host alerts.
 
 **Edits on the Manage pages don't save / tables are read-only.**
 Write access to the KV collections requires the admin, power or sc_admin role. Read-only users see the data but can't edit.

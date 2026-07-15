@@ -13,19 +13,27 @@ required.
 2. **Install** the app to `$SPLUNK_HOME/etc/apps/carbide_app_for_splunk/`
    and restart Splunk.
 3. **Open** the app — you'll land on a 3-step Welcome page.
-4. **Optionally configure** before discovering: **Manage > Entity
+4. **Run the seed searches — before discovery.** In Settings > Searches,
+   run *Carbide - Seed Entity Filters* (installs the default exclude
+   rules: internal `_*` indexes, `summary`, `history`) and *Carbide -
+   Seed Holidays* (pre-fills the holiday calendar). Both are idempotent
+   and also run hourly on their own — but discovery run before the
+   filter seed will inventory all the internal-index noise the rules
+   exist to exclude. Seed first, discover second.
+5. **Optionally configure** before discovering: **Manage > Entity
    Filters** to keep noisy axes out, and **Manage > Auto-watch rules**
    to auto-onboard matching entities the moment they're discovered.
-5. **Run discovery once.** In Settings > Searches, run
+6. **Run discovery once.** In Settings > Searches, run
    *Carbide - Discover hosts (recommended)* and
    *Carbide - Discover sourcetypes (recommended)* (they also run every
    4 hours on their own).
-6. **Pick what to watch.** Open *Manage entities*, filter on what
+7. **Pick what to watch.** Open *Manage entities*, filter on what
    matters, click **Start watching** in the quick actions row — or rely
    on your auto-watch rules.
-7. **Wait one cycle (5 min)** and refresh the Home page — health is
+8. **Wait one cycle (5 min)** and refresh the Home page — health is
    live, alerts are armed. Wire alert actions in Settings > Searches
-   on the two alert saved searches (Hosts, Sources) when you're ready.
+   on the alert saved searches (Hosts, Sources, Clusters) when you're
+   ready.
 
 That's it. Everything else below is reference. New to the operator
 mental model? Open Home → Manage entities → Alerts. The Manage menu
@@ -72,18 +80,36 @@ Carbide is deliberately small and opinionated:
 - **Tags per entity** for ad-hoc grouping ("prod", "payments-team",
   "vendor:zscaler"). All dashboards filter on a case-insensitive
   "contains" match — same for the free-text entity search boxes.
+  Quick actions add/remove a tag across a filtered or ticked selection,
+  and set gap/latency thresholds in bulk the same way.
+- **HA clusters (quorum monitoring)** — Manage > Clusters. A cluster is
+  a tag plus a quorum rule: entities carrying the tag are members, and
+  the cluster stays Healthy while at least `min_healthy_pct` % of its
+  eligible members report (optional absolute floor for small pools).
+  Snoozed / off-hours / settling / new members are excluded from the
+  math on both sides; a member counts as reporting unless DOWN or
+  CRITICAL. With `suppress_member_alerts` on (the default), one dead
+  node in a redundant pool pages nobody and is hidden from Home while
+  the cluster absorbs it — losing quorum fires the cluster alert with
+  the full failing-member list, and members only page individually once
+  the whole cluster is down. Cluster membership is flagged wherever
+  entities render (🛡 tag chips + an "In clusters" row on the entity
+  page).
 - **Threshold suggestions** dashboard: 7-day P95 latency × 1.5 and
   average interval × 5 are proposed per entity; "Apply suggested ... to
   shown rows" pushes the proposals to every row currently shown in
   chunked batch writes.
-- **Two alerts (Hosts, Sources)** firing on DOWN / LATE / CRITICAL /
-  LOW_VOLUME. Each ships a fixed notable `severity` (`high` for hosts,
-  `medium` for sources — Splunk requires a literal enum value here, not
-  a per-result token); ES then derives per-asset **urgency** from that
-  severity and the asset's priority, and the RBA risk action +
-  notable description carry the `asset_criticality` signal. ES notable
-  + email actions ship pre-templated; fill in `action.email.to` to
-  enable.
+- **Three alerts (Hosts, Sources, Clusters)**. Hosts and Sources fire on
+  DOWN / LATE / CRITICAL / LOW_VOLUME; each ships a fixed notable
+  `severity` (`high` for hosts, `medium` for sources — Splunk requires
+  a literal enum value here, not a per-result token); ES then derives
+  per-asset **urgency** from that severity and the asset's priority,
+  and the RBA risk action + notable description carry the
+  `asset_criticality` signal. The Clusters alert fires on DEGRADED /
+  DOWN (quorum lost) and is deliberately email-only — quorum loss is an
+  availability signal; the ES actions ride on the host alerts. ES
+  notable + email actions ship pre-templated; fill in `action.email.to`
+  to enable.
 - **Settings → Audit trail** sources from Splunk's built-in
   `splunkd_access` log, so every KV write under the app is recorded
   automatically without any browser-side audit code.
@@ -129,11 +155,23 @@ Carbide is deliberately small and opinionated:
 | OFF_HOURS | Outside the entity's `monitoring_schedule` window; alerts skip.  |
 | NEW       | Newly discovered and still within `carbide_grace_period`.        |
 
+HA clusters have their own status vocabulary, derived from the cached
+member statuses:
+
+| Cluster status | Meaning                                                       |
+|----------------|---------------------------------------------------------------|
+| OK        | Quorum holds: enough eligible members report.                      |
+| DEGRADED  | Quorum lost: below `min_healthy_pct` (or `min_healthy_count`).     |
+| DOWN      | Zero eligible members reporting.                                   |
+| IDLE      | Members exist but none are eligible (all snoozed / off-hours).     |
+| EMPTY     | No monitored entity carries the cluster's tag (misconfiguration).  |
+
 Home, Manage entities, and alerts all read from the cached path that the
 snapshot saved searches keep within 5 minutes of live. For ad-hoc live
-status (no staleness), run `` | `carbide_host_status` `` or
-`` | `carbide_source_status` `` directly in the Search bar — same macro
-the snapshot uses, just dispatched on demand.
+status (no staleness), run `` | `carbide_host_status` ``,
+`` | `carbide_source_status` `` or `` | `carbide_cluster_status` ``
+directly in the Search bar — same macros the snapshots use, just
+dispatched on demand.
 
 ## Installation
 
@@ -292,9 +330,11 @@ and `ek_hst` from the `mvappend` line.
 | Carbide - Discover sourcetypes (recommended)       | every 4 h   | on      |
 | Carbide - Status Snapshot: Hosts                   | every 5 min | on      |
 | Carbide - Status Snapshot: Sources                 | every 5 min | on      |
+| Carbide - Status Snapshot: Clusters                | every 5 min | on      |
 | Carbide - Heartbeat: Non-OK entities               | hourly      | on      |
 | Carbide - Alert: Hosts                             | every 5 min | on      |
 | Carbide - Alert: Sources                           | every 5 min | on      |
+| Carbide - Alert: Clusters                          | every 5 min | on      |
 | Carbide - Daily digest: entities needing attention | daily 06:30 | on      |
 
 Shipped **disabled** — enable from Settings > Searches when you want
@@ -307,7 +347,13 @@ CSV at `lookups/carbide_entity_filters_seed.csv` and
 inserts its rows into `carbide_entity_filters` **only when the
 collection is empty** — so admin customizations survive app upgrades.
 (The same pattern seeds `carbide_holidays` from
-`lookups/carbide_holidays_seed.csv`.)
+`lookups/carbide_holidays_seed.csv`.) On a fresh install, **run the two
+seed searches before running discovery manually** — the exclude rules
+have to exist before discovery for them to do their job.
+
+The three snapshot searches are staggered (Hosts at minute 0, Sources at
+1, Clusters at 2 of each 5-minute cycle) so the cluster snapshot always
+reads member statuses the entity snapshots just refreshed.
 
 The **Status Snapshot** searches now write to KV only when status
 changed or `last_event_time` advanced, and emit an event to the carbide
@@ -336,7 +382,13 @@ then:
 - `last_event_time` falls back to the value persisted in the KV row when
   the window has no events, so a gap **longer** than the 24h window
   (e.g. a weekly feed with a multi-day `max_gap`) is still measured
-  correctly rather than read as a false DOWN.
+  correctly rather than read as a false DOWN. The fallback has one hard
+  limit: if a feed's **ingest lag** exceeds the window, its events
+  arrive already too old for the tstats to ever see, and the persisted
+  last-seen time can never advance. For that reason the Manage UI
+  refuses a `max_latency_seconds` above the window — if you need to
+  tolerate more latency, widen `carbide_status_window` first (e.g.
+  `-72h@h`); the UI limit follows the macro automatically.
 - `current_gap`     = `now() - last_event_time`
 - `current_latency` = `latest_indextime - last_event_time` — the ingest
   delay of the **most recent event**. (tstats only allows
@@ -366,6 +418,7 @@ no `join`, no 50,000-row truncation cap.
 | `carbide_autowatch_rules` | Auto-onboarding rules applied at discovery.|
 | `carbide_assets`          | Per-host criticality / owner / BU.         |
 | `carbide_holidays`        | Holiday calendar for OFF_HOURS checks.     |
+| `carbide_clusters`        | HA groups: quorum rules keyed by member tag.|
 
 Bootstrap defaults (thresholds, schedule, monitored flag for newly
 discovered entities) live in the `carbide_default_*` search macros —
@@ -511,7 +564,7 @@ carbide_app_for_splunk/
 ├── app.manifest               Splunkbase metadata
 ├── default/
 │   ├── app.conf
-│   ├── collections.conf       6 KV-store collections
+│   ├── collections.conf       7 KV-store collections
 │   ├── transforms.conf        Lookup definitions (KV + seed CSV)
 │   ├── macros.conf            tstats discovery + status + helpers
 │   ├── savedsearches.conf     Seed, discovery, snapshots, heartbeat,
@@ -528,11 +581,12 @@ carbide_app_for_splunk/
 │           ├── trends.xml             SimpleXML dashboard
 │           ├── alerts.xml             SimpleXML dashboard
 │           ├── settings.xml           SimpleXML dashboard
-│           ├── manage_entities.xml    These 8 views are thin SimpleXML
-│           ├── manage_autowatch.xml   shells (Splunk header + nav) that
-│           ├── manage_assets.xml      each host one <html> panel which
-│           ├── manage_holidays.xml    carbide_manage.js renders from the
-│           ├── manage_entity_filters.xml   KV REST API (data-page routing)
+│           ├── manage_entities.xml    These 9 views are thin SimpleXML
+│           ├── manage_clusters.xml    shells (Splunk header + nav) that
+│           ├── manage_autowatch.xml   each host one <html> panel which
+│           ├── manage_assets.xml      carbide_manage.js renders from the
+│           ├── manage_holidays.xml    KV REST API (data-page routing)
+│           ├── manage_entity_filters.xml
 │           ├── manage_suggestions.xml
 │           ├── availability.xml       heatmap + uptime % (JS-rendered)
 │           └── entity.xml             per-entity drilldown (JS-rendered)

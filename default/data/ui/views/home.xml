@@ -40,9 +40,12 @@
                           could be watched.
                         </p>
                         <p>
-                          Open <a href="/manager/carbide_app_for_splunk/saved/searches?app=carbide_app_for_splunk&amp;owner=admin&amp;ns=carbide_app_for_splunk" target="_blank">Settings &#8250; Searches, reports, and alerts</a>,
-                          find <em>Carbide - Discover hosts (recommended)</em>
-                          and click <strong>Run</strong>. Then do the same for
+                          Open <a href="/manager/carbide_app_for_splunk/saved/searches?app=carbide_app_for_splunk&amp;owner=admin&amp;ns=carbide_app_for_splunk" target="_blank">Settings &#8250; Searches, reports, and alerts</a>
+                          and run <em>Carbide - Seed Entity Filters</em> first &#8212;
+                          it installs the default rules that keep internal indexes
+                          out of discovery (and <em>Seed Holidays</em> pre-fills the
+                          holiday calendar). Then run
+                          <em>Carbide - Discover hosts (recommended)</em> and
                           <em>Carbide - Discover sourcetypes (recommended)</em>.
                         </p>
                     </div>
@@ -63,8 +66,8 @@
                           Wait one 5-minute snapshot cycle, then refresh this page.
                           You'll see live health and any entities that aren't
                           reporting. Configure alert actions in
-                          Settings &#8250; Searches for the two alerts that ship
-                          with the app (Hosts and Sources).
+                          Settings &#8250; Searches for the alerts that ship
+                          with the app (Hosts, Sources and Clusters).
                         </p>
                     </div>
                 </div>
