@@ -28,7 +28,7 @@
     // Bump on every change. Rendered in the filter bar + logged to the
     // console so "is the server/browser serving a stale copy?" is a
     // one-glance check instead of a debugging session.
-    var VERSION = '2026-07-15.26';
+    var VERSION = '2026-10-25.27';
     try { console.log('[carbide] manage ui version ' + VERSION); } catch (e) { /* ignore */ }
 
     // ------------------------------------------------------------- REST
@@ -125,7 +125,7 @@
     // "looks numeric" rule would corrupt string fields like patterns).
     var NUMERIC_FIELDS = {};
     ['monitored', 'max_latency_seconds', 'max_gap_seconds', 'min_volume_pct',
-     'baseline_epc', 'first_seen', 'last_updated', 'last_event_time',
+     'baseline_epc', 'baseline_epc_weekend', 'first_seen', 'last_updated', 'last_event_time',
      'last_latency', 'maintenance_from', 'maintenance_until',
      'watch', 'recurring', 'reviewed', 'offhours_grace_seconds', 'on_hours_since'].forEach(function (f) { NUMERIC_FIELDS[f] = 1; });
 
@@ -831,7 +831,9 @@
                   render: function (r) { return Number(r.min_volume_pct) > 0 ? r.min_volume_pct + '% of normal' : '-'; },
                   title: function (r) {
                       return Number(r.baseline_epc) > 0
-                          ? 'normal ≈ ' + Math.round(r.baseline_epc) + ' events/24h - 0 disables volume alerting'
+                          ? 'weekday normal ≈ ' + Math.round(r.baseline_epc) + ' events/24h'
+                            + (Number(r.baseline_epc_weekend) > 0 ? ', weekend ≈ ' + Math.round(r.baseline_epc_weekend) : '')
+                            + ' - 0 disables volume alerting'
                           : 'baseline still learning (needs a few snapshot cycles) - 0 disables';
                   } },
                 { key: 'maintenance_until',   label: 'Snoozed until', edit: { type: 'snooze' },
@@ -944,7 +946,7 @@
                 var fields = ['_key', '_collection', 'entity_key', 'tracking_mode', 'index', 'host', 'source', 'sourcetype',
                               'monitored', 'monitoring_schedule', 'max_gap_seconds', 'max_latency_seconds', 'min_volume_pct',
                               'maintenance_from', 'maintenance_until', 'tags', 'notes',
-                              'reviewed', 'offhours_grace_seconds', 'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'on_hours_since', 'first_seen', 'last_updated'];
+                              'reviewed', 'offhours_grace_seconds', 'last_status', 'last_event_time', 'last_latency', 'baseline_epc', 'baseline_epc_weekend', 'on_hours_since', 'first_seen', 'last_updated'];
                 downloadCsv('carbide_entities.csv', toCsv(rows, fields));
             }));
             actions.appendChild(btn('⬆ Import CSV', null, function () {
@@ -2201,7 +2203,9 @@
             det.appendChild(kvRow('Last event seen', fmtTs(row.last_event_time)));
             det.appendChild(kvRow('Ingest delay at last snapshot', fmtDur(row.last_latency)));
             det.appendChild(kvRow('Normal volume (learned baseline)',
-                Number(row.baseline_epc) > 0 ? Math.round(row.baseline_epc) + ' events / 24h' : 'still learning'));
+                Number(row.baseline_epc) > 0 ? Math.round(row.baseline_epc) + ' events / 24h on weekdays' : 'still learning'));
+            det.appendChild(kvRow('Normal volume (weekends)',
+                Number(row.baseline_epc_weekend) > 0 ? Math.round(row.baseline_epc_weekend) + ' events / 24h' : 'still learning (needs one weekend)'));
             det.appendChild(kvRow('First seen', fmtTs(row.first_seen)));
             det.appendChild(kvRow('Last updated', fmtTs(row.last_updated)));
             cols.appendChild(det);

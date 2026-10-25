@@ -1,0 +1,138 @@
+<form version="1.1" theme="dark" stylesheet="carbide.css">
+    <label>Ingest volume</label>
+    <description>Who is sending the most events? Counts come straight from index metadata (tstats) -- no raw events are scanned, so this stays fast even on very large estates. Byte/GB volume is deliberately not shown: Splunk only records byte sizes in license telemetry or raw events, both of which are slow at scale. By default this shows the WHOLE estate (internal indexes and the app's own index excluded) -- flip "Entity filters" to scope it to what Carbide discovery sees.</description>
+
+    <fieldset submitButton="false" autoRun="true">
+        <input type="time" token="time_tok" searchWhenChanged="true">
+            <label>Time range</label>
+            <default>
+                <earliest>-24h@h</earliest>
+                <latest>now</latest>
+            </default>
+        </input>
+        <input type="dropdown" token="dim_tok" searchWhenChanged="true">
+            <label>Break down by</label>
+            <choice value="sourcetype">Sourcetype</choice>
+            <choice value="index">Index</choice>
+            <choice value="host">Host</choice>
+            <default>sourcetype</default>
+        </input>
+        <input type="dropdown" token="topn_tok" searchWhenChanged="true">
+            <label>Show top</label>
+            <choice value="10">10</choice>
+            <choice value="20">20</choice>
+            <choice value="50">50</choice>
+            <default>20</default>
+        </input>
+        <!-- The choice VALUE is the full tstats `where` scope clause,
+             inserted verbatim into both tstats calls (same pattern as the
+             Trends entity-type dropdown). Note: with filters ON, internal
+             indexes come back into positive scope (the macro always emits
+             `(index=* OR index=_*)`) and are removed again only by the
+             seed `_*` exclude rule, identical to discovery behavior. -->
+        <input type="dropdown" token="scope_tok" searchWhenChanged="true">
+            <label>Entity filters</label>
+            <choice value="index=* AND index!=`carbide_index`">Off -- whole estate</choice>
+            <choice value="`carbide_entity_filter(&quot;hosts&quot;)` AND index!=`carbide_index`">Apply host-axis filters</choice>
+            <choice value="`carbide_entity_filter(&quot;sources&quot;)` AND index!=`carbide_index`">Apply source-axis filters</choice>
+            <default>index=* AND index!=`carbide_index`</default>
+        </input>
+        <input type="dropdown" token="span_tok" searchWhenChanged="true">
+            <label>Chart granularity</label>
+            <choice value="5m">5 minutes</choice>
+            <choice value="15m">15 minutes</choice>
+            <choice value="1h">1 hour</choice>
+            <choice value="4h">4 hours</choice>
+            <choice value="1d">1 day</choice>
+            <default>1h</default>
+        </input>
+    </fieldset>
+
+    <!-- Resolves the picker's (possibly relative) time range to epochs and
+         derives the PREVIOUS window of equal length ending where this one
+         starts. The totals table uses these to compute "vs previous
+         period". addinfo is the proper tool for relative tokens (see the
+         Trends dwell panel); tstats accepts epoch earliest/latest in its
+         where clause, overriding the dispatch range for that call only. -->
+    <search>
+        <query>
+| makeresults
+| addinfo
+| eval win = info_max_time - info_min_time
+| eval prev_e = floor(info_min_time - win)
+| eval prev_l = floor(info_min_time)
+| table prev_e, prev_l
+        </query>
+        <earliest>$time_tok.earliest$</earliest>
+        <latest>$time_tok.latest$</latest>
+        <done>
+            <set token="prev_e">$result.prev_e$</set>
+            <set token="prev_l">$result.prev_l$</set>
+        </done>
+    </search>
+
+    <row>
+        <panel>
+            <title>Events over time -- top $topn_tok$ by $dim_tok$</title>
+            <chart>
+                <!-- The inner tstats finds the top-N values for the window,
+                     then the outer tstats aggregates ONLY those series.
+                     Constraining before the time split matters: on a large
+                     estate `by _time, host` unconstrained can emit millions
+                     of rows that timechart would immediately throw away. -->
+                <search>
+                    <query>
+| tstats prestats=t count
+    where $scope_tok$
+      [| tstats count where $scope_tok$ by $dim_tok$
+         | sort - count
+         | head $topn_tok$
+         | fields $dim_tok$
+         | format ]
+    by _time span=$span_tok$, $dim_tok$
+| timechart span=$span_tok$ count by $dim_tok$ limit=$topn_tok$ useother=false
+                    </query>
+                    <earliest>$time_tok.earliest$</earliest>
+                    <latest>$time_tok.latest$</latest>
+                </search>
+                <option name="charting.chart">column</option>
+                <option name="charting.chart.stackMode">stacked</option>
+                <option name="charting.legend.placement">bottom</option>
+                <option name="charting.axisTitleY.text">events indexed</option>
+                <option name="charting.chart.nullValueMode">zero</option>
+            </chart>
+        </panel>
+    </row>
+
+    <row>
+        <panel>
+            <title>Top $topn_tok$ by total events in the selected window</title>
+            <table>
+                <search>
+                    <query>
+| tstats count where $scope_tok$ by $dim_tok$
+| append [| tstats count as prev_count where $scope_tok$ earliest=$prev_e$ latest=$prev_l$ by $dim_tok$]
+| stats sum(count) as count, sum(prev_count) as prev_count by $dim_tok$
+| eventstats sum(count) as total
+| sort - count
+| head $topn_tok$
+| streamstats count as rank
+| eval "share of all events" = round(100 * count / total, 1) . " %"
+| eval "vs previous period" = case(
+    coalesce(count,0)=0,                       "gone (was " . tostring(prev_count, "commas") . ")",
+    coalesce(prev_count,0)=0,                  "new",
+    count >= prev_count,                       "▲ " . tostring(round(100 * (count - prev_count) / prev_count, 1)) . " %",
+    1=1,                                       "▼ " . tostring(round(100 * (prev_count - count) / prev_count, 1)) . " %")
+| eval events = tostring(coalesce(count,0), "commas")
+| table rank, $dim_tok$, events, "share of all events", "vs previous period"
+| rename rank as "#"
+                    </query>
+                    <earliest>$time_tok.earliest$</earliest>
+                    <latest>$time_tok.latest$</latest>
+                </search>
+                <option name="drilldown">none</option>
+                <option name="count">50</option>
+            </table>
+        </panel>
+    </row>
+</form>

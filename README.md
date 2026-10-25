@@ -38,7 +38,7 @@ required.
 That's it. Everything else below is reference. New to the operator
 mental model? Open Home → Manage entities → Alerts. The Manage menu
 holds auto-watch rules, assets, holidays, entity filters and threshold
-suggestions; Trends, Availability and Settings sit alongside. Every entity name in
+suggestions; Trends, Availability, Ingest volume and Settings sit alongside. Every entity name in
 the app links to its entity page (status, config, history, last
 events).
 
@@ -52,8 +52,13 @@ Carbide is deliberately small and opinionated:
   last event was generated), and opt-in `min_volume_pct` — alert when
   the 24h event count drops below N% of the entity's learned baseline
   (an EMA the snapshot maintains; catches sources that keep sending a
-  trickle on time while most of the volume is lost). The baseline needs
-  a day or two of history before volume alerts arm themselves.
+  trickle on time while most of the volume is lost). Baselines are
+  learned **separately for weekdays and weekends**, and the count window
+  is classed by its midpoint — so a feed that's naturally quiet on
+  Saturdays doesn't false-alarm, and Monday morning's mostly-Sunday
+  window is still judged against the weekend baseline. Weekday alerts
+  arm after a day or two of history; weekend alerts after the first
+  weekend.
 - **Availability view**: per-entity heatmap (worst recorded state per
   day) plus dwell-based availability %% and total downtime over 7/30/90
   days — the management answer to "how reliable is this feed?".
@@ -71,6 +76,20 @@ Carbide is deliberately small and opinionated:
   update in place, rows without are created.
 - **`tstats`-only**: discovery and live status calculation never scan
   raw events.
+- **Ingest volume view**: top 10/20/50 sourcetypes, indexes or hosts by
+  event count — stacked timechart plus a totals table with share-of-estate
+  percentages and a **"vs previous period"** delta column (same-length
+  window immediately before the selected one), so "this sourcetype
+  dropped 40% against yesterday" is one glance. Pure index-metadata
+  `tstats` (no raw scans, no license telemetry), whole estate by default
+  with an opt-in toggle to apply your Carbide entity filters.
+- **New-data-source alert** (disabled by default): an hourly email when
+  discovery inserts an entity nobody expected — misrouted forwarders,
+  rogue onboarding and shadow IT surface here instead of sitting quietly
+  in the review queue.
+- **Nightly config backup**: every Carbide KV collection is snapshotted
+  to a CSV lookup each night — the undo of last resort for accidental
+  bulk edits or deletes. See *Backup & restore*.
 - **Inline + bulk editing**: cells in the Manage dashboards are
   click-to-edit. A bulk toolbar applies a value to every row in the
   current filter via a single KV `batch_save` call (one POST regardless
@@ -336,10 +355,14 @@ and `ek_hst` from the `mvappend` line.
 | Carbide - Alert: Sources                           | every 5 min | on      |
 | Carbide - Alert: Clusters                          | every 5 min | on      |
 | Carbide - Daily digest: entities needing attention | daily 06:30 | on      |
+| Carbide - Backup: KV config to CSV                 | daily 03:57 | on      |
 
 Shipped **disabled** — enable from Settings > Searches when you want
 them: the three advanced discovery modes (host+sourcetype, host+source,
-index+source), the two stale-entity housekeeping searches, and
+index+source), the two stale-entity housekeeping searches,
+*Carbide - Alert: New entity discovered* (hourly heads-up email when
+discovery finds a sourcetype/host/source nobody expected — useful as a
+governance signal for misrouted forwarders and shadow onboarding), and
 *Carbide - Sync ES asset_lookup_by_str to carbide_assets*.
 
 The **Seed Entity Filters** search is idempotent: it reads the read-only
@@ -437,6 +460,39 @@ To change the destination index name:
    (indexers, or a standalone search head) — the app does not create it.
 3. Restart Splunk.
 
+## Backup & restore
+
+*Carbide - Backup: KV config to CSV* runs nightly (03:57) and snapshots
+**every** Carbide KV collection into one CSV lookup,
+`carbide_config_backup.csv`, inside the app. Each row carries a
+`collection` column saying which collection it came from and a `kv_key`
+column preserving the KV `_key`. The file is **overwritten on every
+run** — it's yesterday's config, not an archive; keep normal
+`$SPLUNK_HOME` backups for history. On a search head cluster the CSV
+replicates to all members like any other lookup.
+
+To restore one collection (example: tracked hosts) after an accidental
+bulk edit or delete:
+
+```spl
+| inputlookup carbide_config_backup.csv where collection="carbide_tracked_hosts"
+| eval _key = kv_key
+| fields - collection, kv_key, backup_time
+| outputlookup carbide_tracked_hosts_lookup append=true key_field=_key
+```
+
+Rows with a matching `_key` are updated in place, missing rows are
+re-created; rows you added *after* the backup are left alone. The same
+recipe works for every collection — swap both names. The CSV contains
+the union of all collections' columns, so the `fields -` line plus the
+lookup definition's field list keep foreign columns out of the write.
+If the KV store rejects a restore over field types, wrap the numeric
+fields in `tonumber()` first (CSV round-trips everything as text).
+
+For tracked entities you can also restore through the UI: Manage
+entities > Import CSV understands the same `_key` + `_collection`
+shape used by its own Export.
+
 ## Splunk Enterprise Security integration
 
 Carbide ships ES integration in four pieces. Notable events, CIM
@@ -458,6 +514,18 @@ description also carry `asset_criticality`. Change the literal in the
 alert if `high`/`medium` don't match your severity scheme. On installs
 without ES, the notable action logs a warning and is skipped — the rest
 of the alert (including email) is unaffected.
+
+Both alerts also carry `action.correlationsearch.enabled = 1`, which is
+what makes them appear in **ES Content Management** (ES 7.x) and the
+**Event-Based Detections** list (ES 8.x) — ES classifies detections by
+that flag, not by the notable action. They ship annotated with MITRE
+ATT&CK **T1562 (Impair Defenses)**: an attacker disabling logging on a
+host looks exactly like a data-source outage, which is what makes
+telemetry monitoring a detection and not just ops hygiene. One caveat:
+edits made through the ES detection editor are written to this app's
+`local/savedsearches.conf` on the ES search head, which then shadows
+`default/` on every future app upgrade — prefer editing thresholds and
+schedules on the Carbide side.
 
 ### 2. CIM `Alerts` data model alignment (always on)
 `default/props.conf` ships `FIELDALIAS-cim_*` + `EVAL-*` for the
@@ -579,6 +647,7 @@ carbide_app_for_splunk/
 │       └── views/
 │           ├── home.xml               SimpleXML dashboard
 │           ├── trends.xml             SimpleXML dashboard
+│           ├── volume.xml             SimpleXML dashboard (top talkers)
 │           ├── alerts.xml             SimpleXML dashboard
 │           ├── settings.xml           SimpleXML dashboard
 │           ├── manage_entities.xml    These 9 views are thin SimpleXML

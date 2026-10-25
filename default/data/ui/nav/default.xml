@@ -11,6 +11,7 @@
     </collection>
     <view name="trends"   />
     <view name="availability" />
+    <view name="volume"   />
     <view name="alerts"   />
     <view name="settings" />
     <view name="search"   />
