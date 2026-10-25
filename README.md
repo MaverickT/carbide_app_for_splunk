@@ -76,7 +76,8 @@ Carbide is deliberately small and opinionated:
   update in place, rows without are created.
 - **`tstats`-only**: discovery and live status calculation never scan
   raw events.
-- **Ingest volume view**: top 10/20/50 sourcetypes, indexes or hosts by
+- **Ingest volume view**: top 10/20/50 sourcetypes, indexes, hosts, or
+  the composite index+sourcetype / index+host pairs by
   event count — stacked timechart plus a totals table with share-of-estate
   percentages and a **"vs previous period"** delta column (same-length
   window immediately before the selected one), so "this sourcetype

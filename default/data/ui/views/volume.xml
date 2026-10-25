@@ -10,12 +10,30 @@
                 <latest>now</latest>
             </default>
         </input>
+        <!-- dim_tok is the tstats by-list (also fed to | fields and
+             | table, which both take comma lists). series_tok is the
+             matching eval expression that builds ONE series key for the
+             timechart legend; the <change> handler keeps the pair in
+             sync (it also fires for the initial default). -->
         <input type="dropdown" token="dim_tok" searchWhenChanged="true">
             <label>Break down by</label>
             <choice value="sourcetype">Sourcetype</choice>
             <choice value="index">Index</choice>
             <choice value="host">Host</choice>
+            <choice value="index, sourcetype">Index + sourcetype</choice>
+            <choice value="index, host">Index + host</choice>
             <default>sourcetype</default>
+            <change>
+                <condition value="index, sourcetype">
+                    <set token="series_tok">'index' . " / " . 'sourcetype'</set>
+                </condition>
+                <condition value="index, host">
+                    <set token="series_tok">'index' . " / " . 'host'</set>
+                </condition>
+                <condition>
+                    <set token="series_tok">'$value$'</set>
+                </condition>
+            </change>
         </input>
         <input type="dropdown" token="topn_tok" searchWhenChanged="true">
             <label>Show top</label>
@@ -79,10 +97,15 @@
                      then the outer tstats aggregates ONLY those series.
                      Constraining before the time split matters: on a large
                      estate `by _time, host` unconstrained can emit millions
-                     of rows that timechart would immediately throw away. -->
+                     of rows that timechart would immediately throw away.
+                     With a composite dim the subsearch's | format emits
+                     (index=X AND sourcetype=Y) pairs - still exact top-N.
+                     No prestats: the series key is eval-built (composite
+                     dims need it), so timechart re-aggregates sum(count)
+                     over the already-bucketed rows instead. -->
                 <search>
                     <query>
-| tstats prestats=t count
+| tstats count
     where $scope_tok$
       [| tstats count where $scope_tok$ by $dim_tok$
          | sort - count
@@ -90,11 +113,13 @@
          | fields $dim_tok$
          | format ]
     by _time span=$span_tok$, $dim_tok$
-| timechart span=$span_tok$ count by $dim_tok$ limit=$topn_tok$ useother=false
+| eval series = $series_tok$
+| timechart span=$span_tok$ sum(count) by series limit=$topn_tok$ useother=false
                     </query>
                     <earliest>$time_tok.earliest$</earliest>
                     <latest>$time_tok.latest$</latest>
                 </search>
+                <option name="height">550</option>
                 <option name="charting.chart">column</option>
                 <option name="charting.chart.stackMode">stacked</option>
                 <option name="charting.legend.placement">bottom</option>
